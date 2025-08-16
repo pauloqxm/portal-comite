@@ -143,7 +143,7 @@ def render_header():
         f"""
         <style>
         [data-testid="stHeader"]{{visibility:hidden;}}
-        .custom-header{{position:relative;top:0;left:0;width:100%;
+        .custom-header{{position:fixed;top:0;left:0;width:100%;
         background:linear-gradient(135deg,#228B22 0%,#006400 50%,#004d00 100%);
         color:white;padding:8px 5%;font-family:'Segoe UI',Roboto,sans-serif;
         box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:9999}}
@@ -368,3 +368,4 @@ def render_footer():
         unsafe_allow_html=True,
 
     )
+
