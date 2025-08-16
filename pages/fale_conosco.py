@@ -1,10 +1,27 @@
 import streamlit as st
-import re # Para validação de e-mail e CPF/CNPJ
+import re
+from utils.common import enviar_email
 
 def render_fale_conosco():
     """
     Renderiza a página de formulário de contato "Fale Conosco".
     """
+    # Adicionando um estilo para a borda arredondada do formulário
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stForm"] {
+            border: 1px solid #e6e6e6;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            background: #ffffff;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.title("✉️ Fale Conosco")
     st.markdown(
         """
@@ -19,10 +36,17 @@ def render_fale_conosco():
 
     with st.form(key="contact_form", clear_on_submit=True):
         st.subheader("1. Dados Pessoais/Institucionais")
-        nome = st.text_input("Nome Completo (obrigatório)")
-        email = st.text_input("E-mail (obrigatório)")
-        telefone = st.text_input("Telefone/Celular (opcional)", help="Ex: (85) 91234-5678")
         
+        col1, col2 = st.columns(2)
+        with col1:
+            nome = st.text_input("Nome Completo (obrigatório)")
+            email = st.text_input("E-mail (obrigatório)")
+        with col2:
+            telefone = st.text_input("Telefone/Celular (opcional)", help="Ex: (85) 91234-5678")
+            cpf_cnpj = st.text_input("CPF/CNPJ (opcional)", help="Para demandas institucionais.")
+        
+        cidade_estado = st.text_input("Cidade/Estado (obrigatório)")
+
         # Validação simples de e-mail
         email_valido = False
         if email:
@@ -30,9 +54,6 @@ def render_fale_conosco():
                 email_valido = True
             else:
                 st.error("Por favor, insira um e-mail válido.")
-
-        cpf_cnpj = st.text_input("CPF/CNPJ (opcional)", help="Para demandas institucionais.")
-        cidade_estado = st.text_input("Cidade/Estado (obrigatório)")
 
         st.markdown("---")
         st.subheader("2. Tipo de Contato")
@@ -43,10 +64,7 @@ def render_fale_conosco():
              "Imprensa/assessoria de comunicação", "Outro"),
             key="tipo_contato"
         )
-        if tipo_contato == "Outro":
-            outro_contato = st.text_input("Especifique o tipo de contato:", key="outro_contato_field")
-        else:
-            outro_contato = ""
+        outro_contato = st.text_input("Especifique o tipo de contato:", key="outro_contato_field") if tipo_contato == "Outro" else ""
 
         st.markdown("---")
         st.subheader("3. Mensagem")
@@ -84,10 +102,28 @@ def render_fale_conosco():
         submit_button = st.form_submit_button("Enviar Mensagem")
 
     if submit_button:
-        # Validação dos campos obrigatórios
         if not nome or not email or not cidade_estado or not assunto or not descricao or not lgpd_consentimento or not email_valido:
             st.error("Por favor, preencha todos os campos obrigatórios e aceite os termos da LGPD.")
         else:
-            # Aqui você pode adicionar a lógica para enviar o e-mail, salvar em um banco de dados, etc.
-            # Por exemplo, com st.success para simular o envio.
-            st.success("Sua mensagem foi enviada com sucesso! Agradecemos o seu contato.")
+            dados_formulario = {
+                "nome": nome,
+                "email": email,
+                "telefone": telefone,
+                "cpf_cnpj": cpf_cnpj,
+                "cidade_estado": cidade_estado,
+                "tipo_contato": tipo_contato,
+                "outro_contato": outro_contato,
+                "assunto": assunto,
+                "descricao": descricao,
+                "canal_resposta": canal_resposta,
+                "lgpd_consentimento": lgpd_consentimento,
+                "receber_informativos": receber_informativos
+            }
+            
+            # Substitua pelo e-mail de destino correto
+            email_destino = "o_email_que_recebera@comite.org.br"
+            
+            if enviar_email(dados_formulario, email_destino):
+                st.success("Sua mensagem foi enviada com sucesso! Agradecemos o seu contato.")
+            else:
+                st.error("Houve um problema ao enviar sua mensagem. Por favor, tente novamente mais tarde.")
