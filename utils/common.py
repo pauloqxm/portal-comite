@@ -1,13 +1,18 @@
-
 import streamlit as st
 import pandas as pd
 import json
+import os
+import base64
+import uuid
+from github import Github, InputGitTreeElement
+import io
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
 # ============== Carregamento de GeoJSON e dados (Cacheados) ================
 @lru_cache(maxsize=None)
 def load_geojson_data():
+    """Carrega os arquivos GeoJSON e retorna um dicionário com os dados."""
     files = {
         "trechos_perene.geojson": "geojson_trechos",
         "Açudes_Monitorados.geojson": "geojson_acudes",
@@ -19,14 +24,15 @@ def load_geojson_data():
     }
     data = {}
     for filename, var_name in files.items():
+        filepath = os.path.join("data", filename)
         try:
-            with open(f"data/{filename}", "r", encoding="utf-8") as f:
+            with open(filepath, "r", encoding="utf-8") as f:
                 data[var_name] = json.load(f)
         except FileNotFoundError:
-            st.warning(f"Arquivo {filename} não encontrado. O mapa pode não funcionar corretamente.")
+            st.warning(f"Arquivo GeoJSON não encontrado: {filename}. O mapa pode não renderizar corretamente.")
             data[var_name] = {}
         except json.JSONDecodeError:
-            st.error(f"Erro ao decodificar JSON do arquivo {filename}.")
+            st.error(f"Erro ao decodificar JSON do arquivo: {filename}. Verifique a formatação do arquivo.")
             data[var_name] = {}
     return data
 
@@ -366,6 +372,48 @@ def render_footer():
         </script>
         """,
         unsafe_allow_html=True,
-
     )
 
+def salvar_em_planilha(dados_formulario):
+    """
+    Salva os dados do formulário em uma planilha do Google Sheets.
+    """
+    try:
+        # Credenciais do Google Sheets (use o nome do arquivo que você criou)
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name(".streamlit/gspread-service-account.json", scope)
+        client = gspread.authorize(creds)
+
+        # Use o ID da sua planilha diretamente da URL
+        # O ID é a parte entre "/d/" e "/edit"
+        planilha = client.open_by_key("1aEzpFdPz2lbG7IM9OMIFqVCUtEVkqV18JaytGTX9ugs")
+        
+        # O nome da aba é 'Página1' por padrão, mas pode ser outro se você renomeou
+        aba = planilha.worksheet("Página1") 
+
+        # Adiciona a data e hora do envio
+        dados_formulario['data_envio'] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+        # Converte o dicionário para uma lista de valores, na mesma ordem das colunas da planilha
+        linha = [
+            dados_formulario.get('data_envio', ''),
+            dados_formulario.get('nome', ''),
+            dados_formulario.get('email', ''),
+            dados_formulario.get('telefone', ''),
+            dados_formulario.get('cpf_cnpj', ''),
+            dados_formulario.get('cidade_estado', ''),
+            dados_formulario.get('tipo_contato', ''),
+            dados_formulario.get('outro_contato', ''),
+            dados_formulario.get('assunto', ''),
+            dados_formulario.get('descricao', ''),
+            dados_formulario.get('canal_resposta', ''),
+            'Sim' if dados_formulario.get('lgpd_consentimento') else 'Não',
+            'Sim' if dados_formulario.get('receber_informativos') else 'Não',
+        ]
+        
+        # Insere uma nova linha com os dados
+        aba.append_row(linha)
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar na planilha: {e}")
+        return False
