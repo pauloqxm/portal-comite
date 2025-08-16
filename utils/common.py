@@ -216,8 +216,13 @@ def render_header():
         unsafe_allow_html=True,
     )
 
-def render_footer():
-    """Renderiza o rodapé da aplicação."""
+def render_footer(tab_titles):
+    """Renderiza o rodapé da aplicação com links para as abas."""
+    
+    # Função de callback para mudar a aba ativa
+    def set_active_tab(tab_name):
+        st.session_state.active_tab = tab_name
+        
     st.markdown(
         f"""
         <style>
@@ -276,6 +281,33 @@ def render_footer():
         }}
         .footer-logos img {{
             height: 60px;
+        }}
+        /* Estilo para os links/botões no rodapé */
+        .footer-links {{
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }}
+        /* Estilo para os botões do Streamlit que atuam como links */
+        .stButton button {{
+            background: none!important;
+            border: none!important;
+            padding: 0!important;
+            color: #000000;
+            text-decoration: none;
+            font-size: 14px;
+            margin: 0;
+        }}
+        .stButton button:hover {{
+            color: #555555;
+            text-decoration: underline;
+        }}
+        .link-divider {{
+            color: rgba(0,0,0,0.4);
+            font-size: 14px;
         }}
         /* Botão Voltar ao Topo */
         .back-to-top {{
@@ -358,6 +390,15 @@ def render_footer():
                 <div class="footer-address">
                     🏢 Rua Dona Francisca Santiago, 44 – Centro. CEP 63800-000 – Quixeramobim/CE
                 </div>
+                <div class="footer-links">
+                    {
+                        " | ".join([
+                            f'<a href="#" onclick="{st.experimental_js(f\'window.parent.postMessage({{"streamlit:setSessionState": {{"active_tab": "{title}"}}}}, \'*\')}')" rel="noopener noreferrer">
+                                {title}
+                            </a>' for title in tab_titles
+                        ])
+                    }
+                </div>
                 <button class="back-to-top" id="backToTopBtn2">↑</button>
             </div>
         </div>
@@ -410,5 +451,6 @@ def salvar_em_planilha(dados_formulario):
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
         return False
+
 
 
