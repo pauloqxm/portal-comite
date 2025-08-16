@@ -147,7 +147,7 @@ def render_header():
         f"""
         <style>
         [data-testid="stHeader"]{{visibility:hidden;}}
-        .custom-header{{position:relative;top:0;left:0;width:100vw;
+        .custom-header{{position:fixed;top:0;left:0;width:100vw;
         left:50%;right:50%;margin-left:-50vw;margin-right:-50vw;
         background:linear-gradient(135deg,#228B22 0%,#006400 50%,#004d00 100%);
         color:white;padding:8px 5%;font-family:'Segoe UI',Roboto,sans-serif;
@@ -410,3 +410,4 @@ def salvar_em_planilha(dados_formulario):
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
         return False
+
