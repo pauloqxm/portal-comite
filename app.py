@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from pages import home, acudes, docs, dados, vazoes_dashboard # Adicionamos o novo arquivo
+from pages import home, acudes, docs, dados, vazoes_dashboard, fale_conosco # Importe a nova página
 from utils.common import render_header, render_footer
 
 # ---------------- CONFIG GERAL ----------------
@@ -12,14 +12,14 @@ render_header()
 # =========================
 # CRIAÇÃO DAS ABAS
 # =========================
-# Agora, a primeira aba chama o novo arquivo de boas-vindas
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏠 Página Inicial", "💧 Painel de Vazões", "🗺️ Açudes Monitorados", "📜 Documentos Oficiais", "📈 Simulações"])
+# Adicionando uma nova aba para "Fale Conosco"
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Página Inicial", "💧 Painel de Vazões", "🗺️ Açudes Monitorados", "📜 Documentos Oficiais", "📈 Simulações", "✉️ Fale Conosco"])
 
 with tab1:
     home.render_home()
 
 with tab2:
-    vazoes_dashboard.render_vazoes_dashboard() # Chamamos a nova função aqui
+    vazoes_dashboard.render_vazoes_dashboard()
 
 with tab3:
     acudes.render_acudes()
@@ -29,6 +29,9 @@ with tab4:
 
 with tab5:
     dados.render_dados()
+    
+with tab6:
+    fale_conosco.render_fale_conosco() # Chamando a nova função
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
