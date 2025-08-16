@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-from datetime import datetime, timedelta, timezone
-from functools import lru_cache
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 # ============== Carregamento de GeoJSON e dados (Cacheados) ================
 @lru_cache(maxsize=None)
