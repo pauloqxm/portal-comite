@@ -1,6 +1,6 @@
 import streamlit as st
 import re
-from utils.common import enviar_email
+from utils.common import salvar_em_planilha
 
 def render_fale_conosco():
     """
@@ -36,7 +36,6 @@ def render_fale_conosco():
     with st.form(key="contact_form", clear_on_submit=True):
         st.subheader("1. Dados Pessoais/Institucionais")
         
-        # Cria as colunas para o formulário, ajustando a proporção para melhor visualização
         cols = st.columns(2)
 
         with cols[0]:
@@ -47,10 +46,8 @@ def render_fale_conosco():
             email = st.text_input("E-mail (obrigatório)")
             cpf_cnpj = st.text_input("CPF/CNPJ (opcional)", help="Para demandas institucionais.")
         
-        # Este campo ficará em uma linha completa para melhor visualização
         cidade_estado = st.text_input("Cidade/Estado (obrigatório)")
 
-        # Validação simples de e-mail
         email_valido = False
         if email:
             if re.match(r"[^@]+@[^@]+\.[^@]+", email):
@@ -123,9 +120,7 @@ def render_fale_conosco():
                 "receber_informativos": receber_informativos
             }
             
-            email_destino = "o_email_que_recebera@comite.org.br"
-            
-            if enviar_email(dados_formulario, email_destino):
-                st.success("Sua mensagem foi enviada com sucesso! Agradecemos o seu contato.")
+            if salvar_em_planilha(dados_formulario):
+                st.success("Sua mensagem foi enviada com sucesso e salva na planilha! Agradecemos o seu contato.")
             else:
-                st.error("Houve um problema ao enviar sua mensagem. Por favor, tente novamente mais tarde.")
+                st.error("Houve um problema ao salvar sua mensagem. Por favor, verifique as configurações da planilha e tente novamente.")
