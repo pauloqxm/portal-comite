@@ -3,6 +3,7 @@ import pandas as pd
 import folium
 import json
 import base64
+from datetime import datetime
 from streamlit_folium import folium_static
 from folium.plugins import Fullscreen, MousePosition
 from utils.common import load_reservatorios_data, load_geojson_data
@@ -231,4 +232,5 @@ def render_acudes():
         with st.expander("📥 Opções de Download", expanded=False):
             st.download_button(label="Baixar dados completos (CSV)", data=df_filtrado.drop(columns=["Cor", "Status", "TextColor"]).to_csv(index=False, encoding="utf-8-sig", sep=";"), file_name=f"reservatorios_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
     else:
+
         st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.", icon="⚠️")
