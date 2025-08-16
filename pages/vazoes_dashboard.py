@@ -8,7 +8,7 @@ from folium.plugins import Fullscreen, MiniMap, MousePosition, MeasureControl, M
 import altair as alt
 from utils.common import carregar_dados_vazoes, convert_vazao, load_geojson_data
 
-def render_home():
+def render_vazoes_dashboard(): # Certifique-se de que o nome da função é este
     geojson_data = load_geojson_data()
     geojson_trechos = geojson_data.get('geojson_trechos', {})
     geojson_acudes = geojson_data.get('geojson_acudes', {})
@@ -20,7 +20,7 @@ def render_home():
 
     df = carregar_dados_vazoes()
     
-    # === CONTEÚDO DA ABA 1 (🏠 Página Inicial) ===
+    # === CONTEÚDO DA ABA 1 (🏠 Painel de Vazões) ===
     cA1, cA2, cA3 = st.columns([1, 1, 1])
     with cA1:
         if st.button("🔄 Atualizar agora"):
@@ -30,34 +30,34 @@ def render_home():
 
     st.markdown(
         """
-    <style>
-    .custom-title {
-        font-family: 'Segoe UI', Roboto, sans-serif !important;
-        font-size: 20px !important;
-        font-weight: 700 !important;
-        color: #006400 !important;
-        text-align: center !important;
-        margin: 8px 0 10px 0 !important;
-        padding: 12px 22px !important;
-        position: relative !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 8px !important;
-        background: rgba(144, 238, 144, 0.15) !important;
-        border-radius: 8px !important;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.06) !important;
-    }
-    .custom-title::before, .custom-title::after { content: ""; flex: 1; height: 2px; background: linear-gradient(90deg, transparent, #228B22); border-radius: 2px; }
-    .custom-title::after { background: linear-gradient(90deg, #228B22, transparent); }
-    .custom-title span { display: inline-flex; align-items: center; justify-content: center; font-size: 18px; }
-    @media (max-width: 600px) {
-        .custom-title { flex-direction: column; gap: 4px; padding: 6px 12px; }
-        .custom-title::before, .custom-title::after { width: 70%; height: 1.5px; }
-    }
-    </style>
-    <h1 class="custom-title"><span>💧</span> Painel de Vazões </span></h1>
-    """,
+        <style>
+        .custom-title {
+            font-family: 'Segoe UI', Roboto, sans-serif !important;
+            font-size: 20px !important;
+            font-weight: 700 !important;
+            color: #006400 !important;
+            text-align: center !important;
+            margin: 8px 0 10px 0 !important;
+            padding: 12px 22px !important;
+            position: relative !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            background: rgba(144, 238, 144, 0.15) !important;
+            border-radius: 8px !important;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.06) !important;
+        }
+        .custom-title::before, .custom-title::after { content: ""; flex: 1; height: 2px; background: linear-gradient(90deg, transparent, #228B22); border-radius: 2px; }
+        .custom-title::after { background: linear-gradient(90deg, #228B22, transparent); }
+        .custom-title span { display: inline-flex; align-items: center; justify-content: center; font-size: 18px; }
+        @media (max-width: 600px) {
+            .custom-title { flex-direction: column; gap: 4px; padding: 6px 12px; }
+            .custom-title::before, .custom-title::after { width: 70%; height: 1.5px; }
+        }
+        </style>
+        <h1 class="custom-title"><span>💧</span> Painel de Vazões </span></h1>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -305,4 +305,5 @@ def render_home():
 
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
+
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True)
