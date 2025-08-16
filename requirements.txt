@@ -3,5 +3,9 @@ pandas
 plotly
 folium
 streamlit-folium
-altair
+streamlit-option-menu
+openpyxl
+tabulate
 unicodedata2
+numpy
+altair
