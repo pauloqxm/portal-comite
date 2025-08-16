@@ -9,3 +9,6 @@ tabulate
 unicodedata2
 numpy
 altair
+gspread
+oauth2client
+PyGithub
