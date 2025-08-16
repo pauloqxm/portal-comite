@@ -135,15 +135,10 @@ def render_vazoes_dashboard():
                 media_pond = (dfr["Vazão Operada"] * dfr["dias_ativos"]).sum() / dfr["dias_ativos"].sum()
                 media_pond_conv, _ = convert_vazao(pd.Series([media_pond]), unidade_sel)
                 fig.add_hline(y=media_pond_conv.iloc[0], line_dash="dash", line_width=2, line_color="red", annotation_text=f"Média Ponderada: {media_pond_conv.iloc[0]:.2f} {unit_suffix}", annotation_position="top right")
-
-    # Adicionado key para o gráfico Plotly
     st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_evolucao")
 
     # ------------- Abas de gráficos agregados -------------
-    # Note: As abas st.tabs() têm um ID próprio.
-    # Os widgets dentro de cada aba também podem precisar de keys
-    # se eles forem os mesmos em outras abas ou páginas.
-    gtab1, gtab2 = st.tabs(["📊 Média mensal", "📦 Distribuição (boxplot)"])
+    gtab1, gtab2 = st.tabs(["📊 Média mensal", "📦 Volume Acumulado"])
     with gtab1:
         if not df_filtrado.empty:
             dmm = df_filtrado.assign(mes_num=df_filtrado["Data"].dt.to_period("M").astype(str)).groupby(["Reservatório Monitorado", "mes_num"], as_index=False)["Vazão Operada"].mean()
@@ -179,11 +174,36 @@ def render_vazoes_dashboard():
             else: return f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " m³"
         df_volumes["Volume Formatado"] = df_volumes["Volume Acumulado (m³)"].apply(fmt_m3)
         df_volumes["Volume Eixo Y"] = df_volumes["Volume Acumulado (m³)"] / 1e6
-        y_max = float(df_volumes["Volume Eixo Y"].max()) if not df_volumes.empty else 0.0
-        y_max = y_max * 1.1 if y_max > 0 else 1.0
+        y_max = float(df_volumes["Volume Eixo Y"].max()) if not df_volumes.empty else 1.0
+        y_max = y_max * 1.2 if y_max > 0 else 1.0
         y_title = "Volume Acumulado (milhões m³)"
-        # Adicionado key para o gráfico Altair
-        chart = alt.Chart(df_volumes).mark_text(align="center", baseline="bottom", dy=10).encode(x=alt.X("Reservatório Monitorado:N", title="Reservatório"), y=alt.Y("Volume Eixo Y:Q", title=y_title, scale=alt.Scale(domain=[0, y_max])), text=alt.value("💧"), size=alt.Size("Volume Eixo Y:Q", scale=alt.Scale(range=[10, 300]), legend=None), color=alt.value("steelblue"), tooltip=[alt.Tooltip("Reservatório Monitorado:N", title="Reservatório"), alt.Tooltip("Volume Formatado:N", title="Volume Total")]).properties(title="Volume Acumulado por Reservatório", height=600).interactive()
+
+        base = alt.Chart(df_volumes).encode(
+            x=alt.X("Reservatório Monitorado:N", title="Reservatório")
+        ).properties(
+            title="Volume Acumulado por Reservatório",
+            height=400 
+        ).interactive()
+
+        bars = base.mark_bar(color="steelblue").encode(
+            y=alt.Y("Volume Eixo Y:Q", title=y_title, scale=alt.Scale(domain=[0, y_max])),
+            tooltip=[
+                alt.Tooltip("Reservatório Monitorado:N", title="Reservatório"),
+                alt.Tooltip("Volume Formatado:N", title="Volume Total")
+            ]
+        )
+
+        text = base.mark_text(
+            align="center",
+            baseline="bottom",
+            dy=-5
+        ).encode(
+            y=alt.Y("Volume Eixo Y:Q", stack=None),
+            text=alt.value("💧"),
+            size=alt.value(20)
+        )
+
+        chart = alt.layer(bars, text).resolve_scale(y='independent')
         st.altair_chart(chart, use_container_width=True, key="altair_vazao_volume")
       else:
           st.info("Sem dados suficientes para o gráfico de volume.")
@@ -300,7 +320,8 @@ def render_vazoes_dashboard():
     else:
         st.info("Nenhum ponto com coordenadas disponíveis para plotar no mapa.")
 
-def render_media_por_reservatorio(df_filtrado, unidade_sel):
+    # ------------- Média por reservatório -------------
+    st.subheader("🏞️ Média da Vazão Operada por Reservatório")
     if not df_filtrado.empty:
         media_vazao = df_filtrado.groupby("Reservatório Monitorado")["Vazão Operada"].mean().reset_index()
         media_conv, unit_bar = convert_vazao(media_vazao["Vazão Operada"], unidade_sel)
@@ -309,5 +330,6 @@ def render_media_por_reservatorio(df_filtrado, unidade_sel):
     else:
         st.info("Sem dados para a média.")
 
-def render_tabela(df_filtrado):
+    # ------------- Tabela -------------
+    st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
