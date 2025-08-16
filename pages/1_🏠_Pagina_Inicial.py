@@ -1,14 +1,15 @@
-
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-import altair as alt
-from streamlit_folium import folium_static
 import folium
+import json
+import base64
+import unicodedata2  # pode ser removido se não usar
+import altair as alt  # pode ser removido se não usar
+from datetime import datetime, timedelta, timezone
+from streamlit_folium import folium_static
 from folium.plugins import Fullscreen, MiniMap, MousePosition, MeasureControl, MarkerCluster
-
 from utils.common import render_header, load_geojsons
 
 st.set_page_config(page_title="🏠 Página Inicial", layout="wide")
