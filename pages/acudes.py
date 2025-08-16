@@ -39,18 +39,12 @@ def render_acudes():
                 "Período:", value=(max_date, max_date),
                 min_value=min_date, max_value=max_date
             )
-            if len(date_range) != 2:
-                st.warning("Selecione um intervalo válido")
-                return
-            start_date, end_date = date_range
-
         with col2:
             reservatorios = sorted(df_full["Reservatório"].dropna().astype(str).unique())
             reservatorio_filtro = st.multiselect(
                 "Reservatório(s):", options=reservatorios,
                 default=reservatorios, placeholder="Selecione..."
             )
-
         with col3:
             municipios = ["Todos"] + sorted(df_full["Município"].dropna().astype(str).unique().tolist())
             municipio_filtro = st.selectbox("Município:", options=municipios, index=0)
@@ -63,6 +57,13 @@ def render_acudes():
             min_value=float(min_perc), max_value=float(max_perc),
             value=(float(min_perc), float(max_perc)), step=0.1,
         )
+
+    # Verifica se os filtros são válidos antes de continuar
+    if len(date_range) != 2:
+        st.warning("Selecione um intervalo de datas válido para prosseguir.")
+        return # Para a execução da função se o filtro for inválido
+
+    start_date, end_date = date_range
 
     # --- Aplicar filtros ---
     if not reservatorio_filtro: reservatorio_filtro = reservatorios
@@ -179,18 +180,57 @@ def render_acudes():
     else:
         st.warning("Não há reservatórios com os filtros aplicados.")
 
-# ... (código anterior)
-
     # ===================== Tabela Interativa =====================
     st.subheader("📊 Dados Detalhados Interativos")
     if not df_filtrado.empty:
-        # Tabela e outros gráficos aqui
-        # ... (todo o código para a tabela, legendas e gráficos)
-        
-        # O bloco de download deve vir aqui dentro!
+        faixas_percentual = [(0, 10, "#808080", "Muito Crítica"), (10.1, 30, "#FF0000", "Crítica"), (30.1, 50, "#FFFF00", "Alerta"), (50.1, 70, "#008000", "Confortável"), (70.1, 100, "#0000FF", "Muito Confortável"), (100.1, float("inf"), "#800080", "Vertendo")]
+        def get_status_color(percentual):
+            if pd.isna(percentual): return "#FFFFFF", "N/A", "#000000"
+            for min_val, max_val, color, status in faixas_percentual:
+                if min_val <= percentual <= max_val:
+                    text_color = "#FFFFFF" if color in ["#808080", "#FF0000", "#0000FF", "#800080"] else "#000000"
+                    return color, status, text_color
+            return "#FFFFFF", "Não classificado", "#000000"
+
+        df_filtrado[["Cor", "Status", "TextColor"]] = df_filtrado["Percentual"].apply(lambda x: pd.Series(get_status_color(x)))
+        df_filtrado["Sangria"] = df_filtrado["Cota Sangria"] - df_filtrado["Nivel"]
+        colunas_exibir = ["Data de Coleta", "Reservatório", "Município", "Volume", "Percentual", "Status", "Cota Sangria", "Nivel", "Sangria"]
+        def colorize_row(row):
+            idx = row.name
+            bg_color = df_filtrado.loc[idx, "Cor"]
+            text_color = df_filtrado.loc[idx, "TextColor"]
+            return [f"background-color: {bg_color}; color: {text_color}; font-weight: bold;" for _ in row]
+
+        styled_df = df_filtrado[colunas_exibir].copy().style.apply(colorize_row, axis=1)
+
+        column_config = {"Percentual": st.column_config.ProgressColumn("Percentual", format="%.1f%%", min_value=0, max_value=100), "Volume": st.column_config.NumberColumn("Volume", format="%.2f hm³"), "Cota Sangria": st.column_config.NumberColumn("Cota Sangria", format="%.2f m"), "Nivel": st.column_config.NumberColumn("Nível", format="%.2f m"), "Sangria": st.column_config.NumberColumn("Margem de Sangria", format="%.2f m"), "Status": st.column_config.TextColumn("Status"), "Data de Coleta": st.column_config.DateColumn("Data de Coleta", format="DD/MM/YYYY")}
+        st.dataframe(styled_df, column_config=column_config, use_container_width=True, hide_index=True, height=600, column_order=colunas_exibir)
+
+        st.markdown(
+            """
+        <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #ddd;">
+            <h4 style="margin-bottom: 12px; color: #333; font-size: 16px;">Legenda de Status:</h4>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+        """
+            + "\n".join([f"""<div style="display: flex; align-items: center; padding: 4px;">
+            <div style="width: 24px; height: 24px; background: {color}; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px;"></div>
+            <span style="font-size: 14px;">{status} ({'≥' if min_val == 100.1 else ''}{min_val}-{'' if max_val == float('inf') else max_val}%)</span>
+        </div>""" for min_val, max_val, color, status in faixas_percentual])
+            + "</div></div>",
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("---")
+        st.subheader("📈 Volume dos Reservatórios ao Longo do Tempo")
+        df_reservatorio = df_filtrado[df_filtrado["Reservatório"].isin(reservatorio_filtro)].sort_values("Data de Coleta")
+        if not df_reservatorio.empty:
+            df_reservatorio["Data de Coleta"] = df_reservatorio["Data de Coleta"].dt.date
+            df_plot = df_reservatorio.pivot_table(index="Data de Coleta", columns="Reservatório", values="Volume", aggfunc="mean")
+            st.line_chart(df_plot)
+        else:
+            st.warning("Não há dados de volume para o(s) reservatório(s) selecionado(s) no período.")
         st.markdown("---")
         with st.expander("📥 Opções de Download", expanded=False):
             st.download_button(label="Baixar dados completos (CSV)", data=df_filtrado.drop(columns=["Cor", "Status", "TextColor"]).to_csv(index=False, encoding="utf-8-sig", sep=";"), file_name=f"reservatorios_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
     else:
         st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.", icon="⚠️")
-
