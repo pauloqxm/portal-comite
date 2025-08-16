@@ -2,12 +2,10 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-import base64
-import uuid
-from github import Github, InputGitTreeElement
-import io
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # ============== Carregamento de GeoJSON e dados (Cacheados) ================
 @lru_cache(maxsize=None)
@@ -149,7 +147,8 @@ def render_header():
         f"""
         <style>
         [data-testid="stHeader"]{{visibility:hidden;}}
-        .custom-header{{position:fixed;top:0;left:0;width:100%;
+        .custom-header{{position:relative;top:0;left:0;width:100vw;
+        left:50%;right:50%;margin-left:-50vw;margin-right:-50vw;
         background:linear-gradient(135deg,#228B22 0%,#006400 50%,#004d00 100%);
         color:white;padding:8px 5%;font-family:'Segoe UI',Roboto,sans-serif;
         box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:9999}}
@@ -166,7 +165,7 @@ def render_header():
         .dropdown-btn:hover{{background:rgba(255,255,255,0.2)}}
         .dropdown-content a{{color:white;padding:8px 16px;text-decoration:none;display:block;font-size:13px}}
         .dropdown-content a:hover{{background-color:#004d00}}
-        .main .block-container{{padding-top:90px}}
+        .main .block-container{{padding-top:50px;}}
         .filter-card{{border:1px solid #e6e6e6;border-radius:1px;padding:1px 1px;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.06);margin-top:6px}}
         .filter-title{{font-weight:600;margin-bottom:6px}}
         .quick-chips span{{display:inline-block;border:1px solid #dcdcdc;border-radius:999px;padding:4px 10px;margin-right:6px;margin-top:4px;cursor:pointer;font-size:12px}}
@@ -375,45 +374,39 @@ def render_footer():
     )
 
 def salvar_em_planilha(dados_formulario):
-    """
-    Salva os dados do formulário em uma planilha do Google Sheets.
-    """
-    try:
-        # Credenciais do Google Sheets (use o nome do arquivo que você criou)
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name(".streamlit/gspread-service-account.json", scope)
-        client = gspread.authorize(creds)
+    """
+    Salva os dados do formulário em uma planilha do Google Sheets.
+    """
+    try:
+        # Credenciais do Google Sheets (lendo do secrets.toml)
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"],
+                                                                 ["https://spreadsheets.google.com/feeds",
+                                                                  "https://www.googleapis.com/auth/drive"])
+        client = gspread.authorize(creds)
 
-        # Use o ID da sua planilha diretamente da URL
-        # O ID é a parte entre "/d/" e "/edit"
-        planilha = client.open_by_key("1aEzpFdPz2lbG7IM9OMIFqVCUtEVkqV18JaytGTX9ugs")
-        
-        # O nome da aba é 'Página1' por padrão, mas pode ser outro se você renomeou
-        aba = planilha.worksheet("Página1") 
+        planilha = client.open_by_key("1aEzpFdPz2lbG7IM9OMIFqVCUtEVkqV18JaytGTX9ugs")
+        aba = planilha.worksheet("Página1") 
 
-        # Adiciona a data e hora do envio
-        dados_formulario['data_envio'] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        dados_formulario['data_envio'] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-        # Converte o dicionário para uma lista de valores, na mesma ordem das colunas da planilha
-        linha = [
-            dados_formulario.get('data_envio', ''),
-            dados_formulario.get('nome', ''),
-            dados_formulario.get('email', ''),
-            dados_formulario.get('telefone', ''),
-            dados_formulario.get('cpf_cnpj', ''),
-            dados_formulario.get('cidade_estado', ''),
-            dados_formulario.get('tipo_contato', ''),
-            dados_formulario.get('outro_contato', ''),
-            dados_formulario.get('assunto', ''),
-            dados_formulario.get('descricao', ''),
-            dados_formulario.get('canal_resposta', ''),
-            'Sim' if dados_formulario.get('lgpd_consentimento') else 'Não',
-            'Sim' if dados_formulario.get('receber_informativos') else 'Não',
-        ]
-        
-        # Insere uma nova linha com os dados
-        aba.append_row(linha)
-        return True
-    except Exception as e:
-        st.error(f"Erro ao salvar na planilha: {e}")
-        return False
+        linha = [
+            dados_formulario.get('data_envio', ''),
+            dados_formulario.get('nome', ''),
+            dados_formulario.get('email', ''),
+            dados_formulario.get('telefone', ''),
+            dados_formulario.get('cpf_cnpj', ''),
+            dados_formulario.get('cidade_estado', ''),
+            dados_formulario.get('tipo_contato', ''),
+            dados_formulario.get('outro_contato', ''),
+            dados_formulario.get('assunto', ''),
+            dados_formulario.get('descricao', ''),
+            dados_formulario.get('canal_resposta', ''),
+            'Sim' if dados_formulario.get('lgpd_consentimento') else 'Não',
+            'Sim' if dados_formulario.get('receber_informativos') else 'Não',
+        ]
+        
+        aba.append_row(linha)
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar na planilha: {e}")
+        return False
