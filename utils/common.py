@@ -3,10 +3,12 @@ import pandas as pd
 import json
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+import os # Importar para usar em caminhos
 
 # ============== Carregamento de GeoJSON e dados (Cacheados) ================
 @lru_cache(maxsize=None)
 def load_geojson_data():
+    """Carrega os arquivos GeoJSON e retorna um dicionário com os dados."""
     files = {
         "trechos_perene.geojson": "geojson_trechos",
         "Açudes_Monitorados.geojson": "geojson_acudes",
@@ -18,14 +20,15 @@ def load_geojson_data():
     }
     data = {}
     for filename, var_name in files.items():
+        filepath = os.path.join("data", filename)
         try:
-            with open(f"data/{filename}", "r", encoding="utf-8") as f:
+            with open(filepath, "r", encoding="utf-8") as f:
                 data[var_name] = json.load(f)
         except FileNotFoundError:
-            st.warning(f"Arquivo {filename} não encontrado. O mapa pode não funcionar corretamente.")
+            st.warning(f"Arquivo GeoJSON não encontrado: {filename}. O mapa pode não renderizar corretamente.")
             data[var_name] = {}
         except json.JSONDecodeError:
-            st.error(f"Erro ao decodificar JSON do arquivo {filename}.")
+            st.error(f"Erro ao decodificar JSON do arquivo: {filename}. Verifique a formatação do arquivo.")
             data[var_name] = {}
     return data
 
@@ -142,7 +145,8 @@ def render_header():
         f"""
         <style>
         [data-testid="stHeader"]{{visibility:hidden;}}
-        .custom-header{{position:relative;top:0;left:0;width:100%;
+        .custom-header{{position:relative;top:0;left:0;width:100vw;
+        left:50%;right:50%;margin-left:-50vw;margin-right:-50vw;
         background:linear-gradient(135deg,#228B22 0%,#006400 50%,#004d00 100%);
         color:white;padding:8px 5%;font-family:'Segoe UI',Roboto,sans-serif;
         box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:9999}}
@@ -365,5 +369,4 @@ def render_footer():
         </script>
         """,
         unsafe_allow_html=True,
-
     )
