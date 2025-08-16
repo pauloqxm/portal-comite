@@ -6,7 +6,6 @@ def render_fale_conosco():
     """
     Renderiza a página de formulário de contato "Fale Conosco".
     """
-    # Adicionando um estilo para a borda arredondada do formulário
     st.markdown(
         """
         <style>
@@ -37,14 +36,18 @@ def render_fale_conosco():
     with st.form(key="contact_form", clear_on_submit=True):
         st.subheader("1. Dados Pessoais/Institucionais")
         
-        col1, col2 = st.columns(2)
-        with col1:
+        # Cria as colunas para o formulário, ajustando a proporção para melhor visualização
+        cols = st.columns(2)
+
+        with cols[0]:
             nome = st.text_input("Nome Completo (obrigatório)")
-            email = st.text_input("E-mail (obrigatório)")
-        with col2:
             telefone = st.text_input("Telefone/Celular (opcional)", help="Ex: (85) 91234-5678")
+            
+        with cols[1]:
+            email = st.text_input("E-mail (obrigatório)")
             cpf_cnpj = st.text_input("CPF/CNPJ (opcional)", help="Para demandas institucionais.")
         
+        # Este campo ficará em uma linha completa para melhor visualização
         cidade_estado = st.text_input("Cidade/Estado (obrigatório)")
 
         # Validação simples de e-mail
@@ -120,7 +123,6 @@ def render_fale_conosco():
                 "receber_informativos": receber_informativos
             }
             
-            # Substitua pelo e-mail de destino correto
             email_destino = "o_email_que_recebera@comite.org.br"
             
             if enviar_email(dados_formulario, email_destino):
