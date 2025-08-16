@@ -1,9 +1,10 @@
+
 import streamlit as st
 import pandas as pd
 import json
-import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+import os # Importar para usar em caminhos
 
 # ============== Carregamento de GeoJSON e dados (Cacheados) ================
 @lru_cache(maxsize=None)
@@ -163,7 +164,7 @@ def render_header():
         .dropdown-btn:hover{{background:rgba(255,255,255,0.2)}}
         .dropdown-content a{{color:white;padding:8px 16px;text-decoration:none;display:block;font-size:13px}}
         .dropdown-content a:hover{{background-color:#004d00}}
-        .main .block-container{{padding-top:50px;}} /* Alterado para 50px */
+        .main .block-container{{padding-top:90px}}
         .filter-card{{border:1px solid #e6e6e6;border-radius:1px;padding:1px 1px;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.06);margin-top:6px}}
         .filter-title{{font-weight:600;margin-bottom:6px}}
         .quick-chips span{{display:inline-block;border:1px solid #dcdcdc;border-radius:999px;padding:4px 10px;margin-right:6px;margin-top:4px;cursor:pointer;font-size:12px}}
