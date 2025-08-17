@@ -149,33 +149,60 @@ def render_dados():
     # --- A CORREÇÃO ESTÁ AQUI ---
     kpi_cols = st.columns(4)
     
-    # KPI 1: Total de Liberação (m³/h)
+# KPI 1: Total de Liberação (m³/h)
+
     if 'Liberação (m³/s)' in dff.columns:
         with kpi_cols[0]:
             try:
+                # Converte para numérico tratando vírgulas decimais
                 dff["Liberação (m³/s)"] = pd.to_numeric(
-                    dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'),
+                    dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'), 
                     errors='coerce'
                 )
                 
-                ultima_data = dff['Data'].max()
+                # Remove valores inválidos
+                dff_clean = dff.dropna(subset=["Liberação (m³/s)"])
                 
-                df_ultima_data = dff[dff['Data'] == ultima_data]
-                
-                total_liberacao_m3h = df_ultima_data["Liberação (m³/s)"].sum() * 3600
-                
-                st.markdown(f"""
-                <div class="kpi-card">
-                    <div class="kpi-label">Liberação Total Diária (m³/h)</div>
-                    <div class="kpi-value">{total_liberacao_m3h:,.2f}</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
+                if not dff_clean.empty:
+                    # Pega a PRIMEIRA data disponível (mais antiga)
+                    primeira_data = dff_clean['Data'].min()
+                    
+                    # Filtra os dados apenas para o primeiro dia
+                    df_primeiro_dia = dff_clean[dff_clean['Data'] == primeira_data]
+                    
+                    if not df_primeiro_dia.empty:
+                        # Calcula a liberação para 1 HORA (m³/s * 3600 segundos = m³/h)
+                        liberacao_m3h = df_primeiro_dia["Liberação (m³/s)"].iloc[0] * 3600
+                        
+                        st.markdown(f"""
+                        <div class="kpi-card">
+                            <div class="kpi-label">Liberação Inicial (m³/h)</div>
+                            <div class="kpi-value">{liberacao_m3h:,.2f}</div>
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                Data: {primeira_data.strftime('%d/%m/%Y')}<br>
+                                Período: 1 hora
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.warning("Não há dados de liberação para o primeiro dia.")
+                else:
+                    st.warning("Não há dados válidos de liberação.")
+                    
             except Exception as e:
-                st.warning(f"Não foi possível calcular a liberação total. Erro: {str(e)}")
+                st.error(f"Erro no cálculo: {str(e)}")
     else:
         with kpi_cols[0]:
-            st.warning("Coluna 'Liberação (m³/s)' não encontrada. KPI não disponível.")
+            st.markdown(f"""
+            <div class="kpi-card">
+                <div class="kpi-label">Liberação Inicial (m³/h)</div>
+                <div class="kpi-value" style="color: #e74c3c;">N/D</div>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Coluna não encontrada
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
     
     # KPI 2: Data Inicial
     with kpi_cols[1]:
@@ -321,3 +348,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
