@@ -1,7 +1,10 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
+import folium
+from streamlit_folium import folium_static
+from folium.plugins import Fullscreen, MousePosition
+from utils.common import load_geojson_data
 
 def render_dados():
     st.title("📈 Simulações")
@@ -25,12 +28,10 @@ def render_dados():
         # Trata a coluna de datas
         df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
 
-        # --- A CORREÇÃO ESTÁ AQUI ---
         # Renomeia a coluna com o nome real 'Coordendas' para o nome esperado 'Coordenadas'
         if 'Coordendas' in df.columns:
             df.rename(columns={'Coordendas': 'Coordenadas'}, inplace=True)
-        # -----------------------------
-
+        
     except Exception as e:
         st.error(f"Erro ao carregar os dados da planilha. Verifique se o link está correto e se a planilha está pública. Detalhes do erro: {e}")
         return
@@ -116,11 +117,9 @@ def render_dados():
     st.subheader("📊 Indicadores de Desempenho (KPIs)")
     kpi1, kpi2, kpi3 = st.columns(3)
 
-    # Verificação e tratamento da coluna 'Liberação (m³/s)'
     if 'Liberação (m³/s)' in dff.columns:
         with kpi1:
             try:
-                # Converte para numérico, tratando possíveis vírgulas como separadores decimais
                 dff["Liberação (m³/s)"] = pd.to_numeric(
                     dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'), 
                     errors='coerce'
@@ -144,36 +143,65 @@ def render_dados():
         else:
             st.metric(label="Dias do Período", value="N/A")
 
-    # 3. Mapa com camadas
+    # --- NOVO BLOCO DO MAPA FOLIUM ---
     st.markdown("---")
-    st.subheader("🗺️ Mapa dos Açudes e Cotas")
+    st.subheader("🌍 Mapa dos Açudes")
+    
+    with st.expander("Configurações do Mapa", expanded=False):
+        tile_option = st.selectbox(
+            "Estilo do Mapa:",
+            ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
+            index=0
+        )
+    
+    geojson_data = load_geojson_data()
+    geojson_bacia = geojson_data.get('geojson_bacia', {})
+    geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
+    geojson_poligno = geojson_data.get('geojson_poligno', {})
 
-    if 'Coordenadas' in dff.columns:
-        fig_mapa = px.scatter_mapbox(
-            dff,
-            lat="Latitude",
-            lon="Longitude",
-            color="Classificação",
-            hover_name="Açude",
-            hover_data={
-                "Cota Simulada (m)": True,
-                "Cota Realizada (m)": True,
-                "Município": True,
-                "Liberação (m³/s)": True,
-                "Coordenadas": False,
-                "Data": True
-            },
-            zoom=7,
-            mapbox_style="carto-positron",
-            title="Localização e Status dos Açudes"
-        )
-        fig_mapa.update_layout(
-            margin={"r":0,"t":40,"l":0,"b":0},
-            legend_title_text="Classificação"
-        )
-        st.plotly_chart(fig_mapa, use_container_width=True)
-    else:
-        st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
+    tile_config = {
+        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
+        "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+        "CartoDB positron": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
+        "CartoDB dark_matter": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
+        "Esri Satellite": {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
+        "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+    }
+    
+    center_lat = dff['Latitude'].mean()
+    center_lon = dff['Longitude'].mean()
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
+
+    # Adiciona as camadas GeoJSON
+    folium.GeoJson(geojson_bacia, name="Bacia Hidrográfica").add_to(m)
+    folium.GeoJson(geojson_c_gestoras, name="Células Gestoras").add_to(m)
+    folium.GeoJson(geojson_poligno, name="Polígonos").add_to(m)
+
+    # Adiciona marcadores para cada açude
+    for _, row in dff.iterrows():
+        popup_html = f"""
+        <b>Açude:</b> {row['Açude']}<br>
+        <b>Município:</b> {row['Município']}<br>
+        <b>Cota Simulada:</b> {row['Cota Simulada (m)']:.3f} m<br>
+        <b>Cota Realizada:</b> {row['Cota Realizada (m)']:.3f} m<br>
+        <b>Volume:</b> {row['Volume(m³)']} m³<br>
+        <b>Classificação:</b> {row['Classificação']}
+        """
+        folium.Marker(
+            location=[row['Latitude'], row['Longitude']],
+            tooltip=row['Açude'],
+            popup=folium.Popup(popup_html, max_width=300)
+        ).add_to(m)
+
+    # Adiciona os plugins
+    Fullscreen().add_to(m)
+    MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
+    
+    # Adiciona o LayerControl para as camadas
+    folium.LayerControl().add_to(m)
+    
+    folium_static(m)
+    # --- FIM DO NOVO BLOCO DO MAPA ---
 
     # 4. Gráficos de cota e volume
     st.markdown("---")
