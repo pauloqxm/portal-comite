@@ -110,19 +110,19 @@ def render_dados():
     st.subheader("📊 Indicadores de Desempenho (KPIs)")
     kpi1, kpi2, kpi3 = st.columns(3)
 
-    # Verificação da coluna 'Liberação (m³/s)' antes de somar
+    # Verificação e tratamento da coluna 'Liberação (m³/s)'
     if 'Liberação (m³/s)' in dff.columns:
-    with kpi1:
-        try:
-            # Converte para numérico, tratando possíveis vírgulas como separadores decimais
-            dff["Liberação (m³/s)"] = pd.to_numeric(
-                dff["Liberação (m³/s)"].str.replace(',', '.'), 
-                errors='coerce'
-            )
-            total_liberacao = dff["Liberação (m³/s)"].sum()
-            st.metric(label="Total de Liberação (m³/s)", value=f"{total_liberacao:.2f}")
-        except Exception as e:
-            st.warning(f"Não foi possível calcular a liberação total. Erro: {str(e)}")
+        with kpi1:
+            try:
+                # Converte para numérico, tratando possíveis vírgulas como separadores decimais
+                dff["Liberação (m³/s)"] = pd.to_numeric(
+                    dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'), 
+                    errors='coerce'
+                )
+                total_liberacao = dff["Liberação (m³/s)"].sum()
+                st.metric(label="Total de Liberação (m³/s)", value=f"{total_liberacao:.2f}")
+            except Exception as e:
+                st.warning(f"Não foi possível calcular a liberação total. Erro: {str(e)}")
     else:
         with kpi1:
             st.warning("Coluna 'Liberação (m³/s)' não encontrada. KPI não disponível.")
@@ -174,6 +174,10 @@ def render_dados():
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     
     if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
+        # Garante que as colunas são numéricas
+        dff["Cota Simulada (m)"] = pd.to_numeric(dff["Cota Simulada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
+        dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
+        
         fig_cotas = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
@@ -205,6 +209,9 @@ def render_dados():
 
     st.subheader("📈 Volume (m³)")
     if 'Volume(m³)' in dff.columns:
+        # Garante que a coluna é numérica
+        dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
+        
         fig_vol = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
@@ -265,4 +272,3 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
-
