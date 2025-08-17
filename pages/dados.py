@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -142,7 +143,7 @@ def render_dados():
     
                 st.markdown(f"""
                 <div class="kpi-card">
-                    <div class="kpi-label">Liberação Total (m³/h) — {ultima_data.strftime('%d/%m/%Y')}</div>
+                    <div class="kpi-label">Vazão Simulada (m³/h) — {ultima_data.strftime('%d/%m/%Y')}</div>
                     <div class="kpi-value">{fmt_br(total_liberacao_m3h)}</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -302,10 +303,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
-
-
-
-
-
-
 
