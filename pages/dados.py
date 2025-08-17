@@ -216,15 +216,23 @@ def render_dados():
             </div>
             """, unsafe_allow_html=True)
     
-    # KPI 3: Açudes Monitorados
+# KPI 3: Última Data Disponível
     with kpi_cols[2]:
-        total_acudes = dff["Açude"].nunique()
-        st.markdown(f"""
-        <div class="kpi-card">
-            <div class="kpi-label">Açudes Monitorados</div>
-            <div class="kpi-value">{total_acudes}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        if not dff.empty and 'Data' in dff.columns:
+            ultima_data = dff['Data'].max().strftime('%d/%m/%Y')
+            st.markdown(f"""
+            <div class="kpi-card">
+                <div class="kpi-label">Última Atualização</div>
+                <div class="kpi-value">{ultima_data}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="kpi-card">
+                <div class="kpi-label">Última Atualização</div>
+                <div class="kpi-value">N/A</div>
+            </div>
+            """, unsafe_allow_html=True)
     
     # KPI 4: Dias do Período
     with kpi_cols[3]:
@@ -342,5 +350,6 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
