@@ -20,19 +20,10 @@ def render_dados():
     google_sheet_url = "https://docs.google.com/spreadsheets/d/1C40uaNmLUeu-k_FGEPZOgF8FwpSU00C9PtQu8Co4AUI/gviz/tq?tqx=out:csv&sheet=simulacoes_data"
     
     try:
-        # Lê o CSV da URL
         df = pd.read_csv(google_sheet_url)
 
         # Trata a coluna de datas
         df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
-
-        # Renomeia a coluna de coordenadas para um nome padrão e consistente.
-        # Substitua 'Coordendas' pelo nome exato que está na sua planilha, se for diferente.
-        if 'Coordendas' in df.columns:
-            df = df.rename(columns={'Coordendas': 'Coordenadas'})
-        else:
-            st.warning("A coluna 'Coordenadas' não foi encontrada. O mapa não será exibido.")
-            return
 
     except Exception as e:
         st.error(f"Erro ao carregar os dados da planilha. Verifique se o link está correto e se a planilha está pública. Detalhes do erro: {e}")
@@ -106,13 +97,12 @@ def render_dados():
         st.info("Não há dados para os filtros selecionados.")
         return
 
-    # Certifique-se de que a coluna de Coordenadas existe antes de tentar processá-la
+    # Verificação e processamento da coluna 'Coordenadas'
     if 'Coordenadas' in dff.columns:
         dff[['Latitude', 'Longitude']] = dff['Coordenadas'].str.split(',', expand=True).astype(float)
     else:
-        st.warning("A coluna 'Coordenadas' não está disponível. O mapa e os gráficos de cota/volume não serão exibidos corretamente.")
-        return
-    
+        st.warning("A coluna 'Coordenadas' não foi encontrada. O mapa não será exibido.")
+        
     dff = dff.sort_values(["Açude", "Data"])
 
     # 2. Exibir KPIs
@@ -120,18 +110,20 @@ def render_dados():
     st.subheader("📊 Indicadores de Desempenho (KPIs)")
     kpi1, kpi2, kpi3 = st.columns(3)
 
-    with kpi1:
-        # Soma da liberação no período filtrado
-        total_liberacao = dff["Liberação (m³/s)"].sum()
-        st.metric(label="Total de Liberação (m³/s)", value=f"{total_liberacao:.2f}")
+    # Verificação da coluna 'Liberação (m³/s)' antes de somar
+    if 'Liberação (m³/s)' in dff.columns:
+        with kpi1:
+            total_liberacao = dff["Liberação (m³/s)"].sum()
+            st.metric(label="Total de Liberação (m³/s)", value=f"{total_liberacao:.2f}")
+    else:
+        with kpi1:
+            st.warning("Coluna 'Liberação (m³/s)' não encontrada. KPI não disponível.")
 
     with kpi2:
-        # Contagem de Açudes Únicos
         total_acudes = dff["Açude"].nunique()
         st.metric(label="Açudes Monitorados", value=total_acudes)
 
     with kpi3:
-        # Número de dias no período
         if periodo:
             dias = (dff["Data"].max() - dff["Data"].min()).days
             st.metric(label="Dias do Período", value=dias)
@@ -142,50 +134,61 @@ def render_dados():
     st.markdown("---")
     st.subheader("🗺️ Mapa dos Açudes e Cotas")
 
-    # Mapa interativo com camada de pontos para as coordenadas
-    fig_mapa = px.scatter_mapbox(
-        dff,
-        lat="Latitude",
-        lon="Longitude",
-        color="Classificação",
-        hover_name="Açude",
-        hover_data={
-            "Cota Simulada (m)": True,
-            "Cota Realizada (m)": True,
-            "Município": True,
-            "Liberação (m³/s)": True,
-            "Coordenadas": False,
-            "Data": True
-        },
-        zoom=7,
-        mapbox_style="carto-positron",
-        title="Localização e Status dos Açudes"
-    )
-
-    fig_mapa.update_layout(
-        margin={"r":0,"t":40,"l":0,"b":0},
-        legend_title_text="Classificação"
-    )
-    st.plotly_chart(fig_mapa, use_container_width=True)
+    if 'Coordenadas' in dff.columns:
+        fig_mapa = px.scatter_mapbox(
+            dff,
+            lat="Latitude",
+            lon="Longitude",
+            color="Classificação",
+            hover_name="Açude",
+            hover_data={
+                "Cota Simulada (m)": True,
+                "Cota Realizada (m)": True,
+                "Município": True,
+                "Liberação (m³/s)": True,
+                "Coordenadas": False,
+                "Data": True
+            },
+            zoom=7,
+            mapbox_style="carto-positron",
+            title="Localização e Status dos Açudes"
+        )
+        fig_mapa.update_layout(
+            margin={"r":0,"t":40,"l":0,"b":0},
+            legend_title_text="Classificação"
+        )
+        st.plotly_chart(fig_mapa, use_container_width=True)
+    else:
+        st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
 
     # 4. Gráficos de cota e volume
     st.markdown("---")
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
-    fig_cotas = go.Figure()
-    for acude in sorted(dff["Açude"].dropna().unique()):
-        base = dff[dff["Açude"] == acude].sort_values("Data")
-        fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Simulada (m)"], mode="lines+markers", name=f"{acude} - Cota Simulada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
-        fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Realizada (m)"], mode="lines+markers", name=f"{acude} - Cota Realizada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
-    fig_cotas.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Cota (m)", height=480)
-    st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
+    
+    # Verificação das colunas antes de gerar os gráficos
+    if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
+        fig_cotas = go.Figure()
+        for acude in sorted(dff["Açude"].dropna().unique()):
+            base = dff[dff["Açude"] == acude].sort_values("Data")
+            fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Simulada (m)"], mode="lines+markers", name=f"{acude} - Cota Simulada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
+            fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Realizada (m)"], mode="lines+markers", name=f"{acude} - Cota Realizada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
+        fig_cotas.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Cota (m)", height=480)
+        st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
+    else:
+        st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
+
 
     st.subheader("📈 Volume (m³)")
-    fig_vol = go.Figure()
-    for acude in sorted(dff["Açude"].dropna().unique()):
-        base = dff[dff["Açude"] == acude].sort_values("Data")
-        fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume(m³)"], mode="lines+markers", name=f"{acude} - Volume (m³)", hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m³<extra></extra>"))
-    fig_vol.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Volume (m³)", height=420)
-    st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
+    if 'Volume(m³)' in dff.columns:
+        fig_vol = go.Figure()
+        for acude in sorted(dff["Açude"].dropna().unique()):
+            base = dff[dff["Açude"] == acude].sort_values("Data")
+            fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume(m³)"], mode="lines+markers", name=f"{acude} - Volume (m³)", hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m³<extra></extra>"))
+        fig_vol.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Volume (m³)", height=420)
+        st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
+    else:
+        st.info("Gráfico de Volume não disponível. Coluna 'Volume(m³)' não encontrada.")
+
 
     # 5. Tabela de dados
     st.markdown("---")
@@ -208,6 +211,8 @@ def render_dados():
             'Coordenadas'
         ]
         
-        dff_tabela = dff[colunas_tabela]
+        # Filtra apenas as colunas que realmente existem no DataFrame
+        colunas_existentes = [col for col in colunas_tabela if col in dff.columns]
+        dff_tabela = dff[colunas_existentes]
         
         st.dataframe(dff_tabela.sort_values(["Açude", "Data"], ascending=[True, False]), use_container_width=True)
