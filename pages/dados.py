@@ -144,24 +144,30 @@ def render_dados():
     """, unsafe_allow_html=True)
     
     kpi_cols = st.columns(4)
+
+#==========================KPI 1: Total de Liberação (m³/h)
     
     if 'Liberação (m³/s)' in dff.columns:
         with kpi_cols[0]:
             try:
+                # Converte a coluna para tipo numérico
                 dff["Liberação (m³/s)"] = pd.to_numeric(
                     dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'),
                     errors='coerce'
                 )
                 
+                # Pega a data mais recente disponível
                 ultima_data = dff['Data'].max()
                 
+                # Filtra os dados apenas para a última data
                 df_ultima_data = dff[dff['Data'] == ultima_data]
                 
+                # Soma os valores para essa data e converte para m³/h
                 total_liberacao_m3h = df_ultima_data["Liberação (m³/s)"].sum() * 3600
                 
                 st.markdown(f"""
                 <div class="kpi-card">
-                    <div class="kpi-label">Liberação Total Diária (m³/h)</div>
+                    <div class="kpi-label">Vazão Simulada (m³/h)</div>
                     <div class="kpi-value">{total_liberacao_m3h:,.2f}</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -352,5 +358,6 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
