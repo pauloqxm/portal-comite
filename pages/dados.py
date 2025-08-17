@@ -25,6 +25,12 @@ def render_dados():
         # Trata a coluna de datas
         df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
 
+        # --- A CORREÇÃO ESTÁ AQUI ---
+        # Renomeia a coluna com o nome real 'Coordendas' para o nome esperado 'Coordenadas'
+        if 'Coordendas' in df.columns:
+            df.rename(columns={'Coordendas': 'Coordenadas'}, inplace=True)
+        # -----------------------------
+
     except Exception as e:
         st.error(f"Erro ao carregar os dados da planilha. Verifique se o link está correto e se a planilha está pública. Detalhes do erro: {e}")
         return
@@ -174,7 +180,6 @@ def render_dados():
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     
     if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
-        # Garante que as colunas são numéricas
         dff["Cota Simulada (m)"] = pd.to_numeric(dff["Cota Simulada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
         
@@ -209,7 +214,6 @@ def render_dados():
 
     st.subheader("📈 Volume (m³)")
     if 'Volume(m³)' in dff.columns:
-        # Garante que a coluna é numérica
         dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
         
         fig_vol = go.Figure()
@@ -255,7 +259,6 @@ def render_dados():
             'Coordenadas'
         ]
         
-        # Filtra apenas as colunas que realmente existem no DataFrame
         colunas_existentes = [col for col in colunas_tabela if col in dff.columns]
         dff_tabela = dff[colunas_existentes]
         
