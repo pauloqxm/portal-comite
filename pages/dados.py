@@ -112,9 +112,17 @@ def render_dados():
 
     # Verificação da coluna 'Liberação (m³/s)' antes de somar
     if 'Liberação (m³/s)' in dff.columns:
-        with kpi1:
+    with kpi1:
+        try:
+            # Converte para numérico, tratando possíveis vírgulas como separadores decimais
+            dff["Liberação (m³/s)"] = pd.to_numeric(
+                dff["Liberação (m³/s)"].str.replace(',', '.'), 
+                errors='coerce'
+            )
             total_liberacao = dff["Liberação (m³/s)"].sum()
             st.metric(label="Total de Liberação (m³/s)", value=f"{total_liberacao:.2f}")
+        except Exception as e:
+            st.warning(f"Não foi possível calcular a liberação total. Erro: {str(e)}")
     else:
         with kpi1:
             st.warning("Coluna 'Liberação (m³/s)' não encontrada. KPI não disponível.")
@@ -257,3 +265,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
