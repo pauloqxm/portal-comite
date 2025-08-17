@@ -6,9 +6,6 @@ from streamlit_folium import folium_static
 from folium.plugins import Fullscreen, MousePosition
 from utils.common import load_geojson_data
 
-def render_dados():
-    if st.button("🔄 Recarregar Página"):
-        st.experimental_rerun()
 
     st.title("📈 Simulações")
     st.markdown("""
@@ -350,6 +347,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
