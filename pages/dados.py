@@ -250,6 +250,8 @@ def render_dados():
                 <div class="kpi-value">N/A</div>
             </div>
             """, unsafe_allow_html=True)
+
+#============Cotas (Cota Simulada x Cota Realizada
     
     st.markdown("---")
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
@@ -275,18 +277,22 @@ def render_dados():
                 name=f"{acude} - Cota Realizada (m)", 
                 hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
             ))
+        
+        # === CORREÇÃO: ADICIONA O FORMATO DE TICK AO EIXO Y ===
         fig_cotas.update_layout(
             template="plotly_white", 
             margin=dict(l=10, r=10, t=10, b=10), 
             legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), 
             xaxis_title="Data", 
-            yaxis_title="Cota (m)", 
+            yaxis=dict(title="Cota (m)", tickformat=".2f"),  # <-- AQUI ESTÁ A MUDANÇA
             height=480
         )
+        # ======================================================
+        
         st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
     else:
         st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
-
+    
     st.subheader("📈 Volume (m³)")
     if 'Volume(m³)' in dff.columns:
         dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
@@ -349,4 +355,5 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
