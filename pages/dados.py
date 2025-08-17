@@ -109,10 +109,8 @@ def render_dados():
     dff = dff.sort_values(["Açude", "Data"])
 
 
-    # --- INÍCIO DO BLOCO DO MAPA ---
-    st.markdown("---")
+# --- INÍCIO DO BLOCO DO MAPA ---
     st.subheader("🌍 Mapa dos Açudes")
-    
     with st.expander("Configurações do Mapa", expanded=False):
         tile_option = st.selectbox(
             "Estilo do Mapa:",
@@ -125,7 +123,7 @@ def render_dados():
     geojson_situa = geojson_data.get('geojson_situa', {})
     geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
     geojson_poligno = geojson_data.get('geojson_poligno', {})
-
+    
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
         "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
@@ -139,14 +137,14 @@ def render_dados():
         center_lat = dff['Latitude'].mean()
         center_lon = dff['Longitude'].mean()
         m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
-
-        # ------------- CATEGORIZAÇÃO POR "Classificação" NO GEOJSON_SITUA (com suporte a Point) -------------
+    
+        # === CÓDIGO DA LÓGICA DE CORES ===
         def _get_classificacao(props):
             for k in ("Classificação", "classificacao", "CLASSIFICACAO"):
                 if k in props:
                     return str(props[k])
             return "Sem classificação"
-            
+        
         color_map = {
             "Crítico":          "#d73027",  # vermelho
             "Alerta":           "#fc8d59",  # laranja
@@ -155,84 +153,31 @@ def render_dados():
             "Observação":       "#4575b4",  # azul
             "Sem classificação": "#999999"
         }
-            
-        def style_function(feature):
-            # usado para POLÍGONOS/LINHAS
-            cls = _get_classificacao(feature.get("properties", {}))
-            color = color_map.get(cls, color_map["Sem classificação"])
-            return {
-                "color": color,     # borda
-                "weight": 2.5,
-                "fillColor": color,     # preenchimento (polígonos)
-                "fillOpacity": 0.35
-            }
-            
-        def highlight_function(feature):
-            return {"color": "#000000", "weight": 3, "fillOpacity": 0.45}
-            
+    
+        # Adiciona a camada GeoJSON com a categorização de cores
         if geojson_situa:
-            has_points = any(
-                (f.get("geometry", {}) or {}).get("type", "").endswith("Point")
-                for f in geojson_situa.get("features", [])
-            )
-            
-            def _tooltip_html(props):
-                nome = props.get("nome") or props.get("Nome") or props.get("NOME") or props.get("Açude") or props.get("Acude")
-                cls  = _get_classificacao(props)
-                parts = []
-                if nome: parts.append(f"<b>Nome:</b> {nome}")
-                if cls:  parts.append(f"<b>Classificação:</b> {cls}")
-                return "<br>".join(parts) if parts else "Sem dados"
-            
-            for f in geojson_situa.get("features", []):
-                props = f.get("properties", {})
-                props["_tooltip_html"] = _tooltip_html(props)
-            
-            if has_points:
-                def point_to_layer(feature, latlng):
-                    cls = _get_classificacao(feature.get("properties", {}))
-                    color = color_map.get(cls, color_map["Sem classificação"])
-                    return folium.CircleMarker(
-                        location=latlng,
-                        radius=6,
-                        color=color,
-                        weight=2,
-                        fill=True,
-                        fill_color=color,
-                        fill_opacity=0.9
-                    )
-            
-                layer_situa = folium.GeoJson(
-                    geojson_situa,
-                    name="Situação da Bacia",
-                    show=False,
-                    point_to_layer=point_to_layer,
-                    style_function=style_function,
-                    highlight_function=highlight_function,
-                    tooltip=folium.GeoJsonTooltip(
-                        fields=["_tooltip_html"], aliases=[""], labels=False, sticky=True
-                    ),
-                )
-            else:
-                layer_situa = folium.GeoJson(
-                    geojson_situa,
-                    name="Situação da Bacia",
-                    show=False,
-                    style_function=style_function,
-                    highlight_function=highlight_function,
-                    tooltip=folium.GeoJsonTooltip(
-                        fields=["_tooltip_html"], aliases=[""], labels=False, sticky=True
-                    ),
-                )
-            
-            layer_situa.add_to(m)
-
+            folium.GeoJson(
+                geojson_situa,
+                name="Situação da Bacia",
+                style_function=lambda x: {
+                    "color": color_map.get(_get_classificacao(x["properties"]), color_map["Sem classificação"]),
+                    "weight": 2.5,
+                    "fillColor": color_map.get(_get_classificacao(x["properties"]), color_map["Sem classificação"]),
+                    "fillOpacity": 0.35,
+                },
+                tooltip=folium.GeoJsonTooltip(fields=["Classificação"]),
+            ).add_to(m)
+    
         if geojson_c_gestoras:
             folium.GeoJson(geojson_c_gestoras, name="Células Gestoras").add_to(m)
         if geojson_poligno:
             folium.GeoJson(geojson_poligno, name="Polígonos").add_to(m)
-
+    
+        # Adiciona os marcadores dos açudes com a cor correspondente
         for _, row in dff.iterrows():
+            # Obtém a cor com base na classificação da linha
+            color_marker = color_map.get(row.get('Classificação', 'Sem classificação'), color_map["Sem classificação"])
+            
             popup_html = f"""
             <b>Açude:</b> {row.get('Açude', 'N/A')}<br>
             <b>Município:</b> {row.get('Município', 'N/A')}<br>
@@ -242,12 +187,17 @@ def render_dados():
             <b>Classificação:</b> {row.get('Classificação', 'N/A')}
             """
             
-            folium.Marker(
+            folium.CircleMarker(
                 location=[row['Latitude'], row['Longitude']],
+                radius=6,
+                color=color_marker,
+                fill=True,
+                fill_color=color_marker,
+                fill_opacity=0.9,
                 tooltip=row.get('Açude', 'N/A'),
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
-
+    
         Fullscreen().add_to(m)
         MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
         folium.LayerControl().add_to(m)
@@ -255,7 +205,7 @@ def render_dados():
         folium_static(m)
     else:
         st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
-    # --- FIM DO BLOCO DO MAPA ---
+# --- FIM DO BLOCO DO MAPA ---
     
     # --- INDICADORES DE DESEMPENHO (KPIs) ---
     st.markdown("---")
@@ -501,3 +451,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
