@@ -133,12 +133,12 @@ def render_dados():
     geojson_poligno    = geojson_data.get('geojson_poligno', {})
     
     tile_config = {
-        "OpenStreetMap":     {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
-        "Stamen Terrain":    {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
-        "Stamen Toner":      {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
-        "CartoDB positron":  {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
+        "OpenStreetMap":      {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
+        "Stamen Terrain":     {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+        "Stamen Toner":       {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+        "CartoDB positron":   {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
         "CartoDB dark_matter":{"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
-        "Esri Satellite":    {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
+        "Esri Satellite":     {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
     }
     
     if {"Latitude","Longitude"}.issubset(dff.columns):
@@ -162,13 +162,97 @@ def render_dados():
                 control=True, show=(name == tile_option)
             ).add_to(m)
     
-        # Overlays nomeados (aparecem no LayerControl)
+        # ------------- CATEGORIZAÇÃO POR "Classificação" NO GEOJSON_SITUA -------------
+        def _get_classificacao(props):
+            for k in ("Classificação", "classificacao", "CLASSIFICACAO"):
+                if k in props:
+                    return str(props[k])
+            return "Sem classificação"
+    
+        color_map = {
+            "Crítico":            "#d73027",  # vermelho
+            "Alerta":             "#fc8d59",  # laranja
+            "Atenção":            "#fee08b",  # amarelo
+            "Normal":             "#1a9850",  # verde
+            "Observação":         "#4575b4",  # azul
+            "Sem classificação":  "#999999"
+        }
+    
+        def style_function(feature):
+            cls = _get_classificacao(feature.get("properties", {}))
+            color = color_map.get(cls, color_map["Sem classificação"])
+            return {
+                "color": color,        # borda
+                "weight": 2.5,
+                "fillColor": color,    # preenchimento (polígonos)
+                "fillOpacity": 0.25
+            }
+    
+        def highlight_function(feature):
+            return {"color": "#000000", "weight": 3, "fillOpacity": 0.35}
+    
         if geojson_situa:
-            folium.GeoJson(geojson_situa, name="Situação da Bacia", show=False).add_to(m)
+            # Gera HTML do tooltip a partir das properties
+            def _tooltip_html(props):
+                nome = props.get("nome") or props.get("Nome") or props.get("NOME") or props.get("Açude") or props.get("Acude")
+                cls  = _get_classificacao(props)
+                parts = []
+                if nome: parts.append(f"<b>Nome:</b> {nome}")
+                if cls:  parts.append(f"<b>Classificação:</b> {cls}")
+                return "<br>".join(parts) if parts else "Sem dados"
+    
+            # Injeta um campo temporário para tooltip
+            for f in geojson_situa.get("features", []):
+                f_props = f.get("properties", {})
+                f_props["_tooltip_html"] = _tooltip_html(f_props)
+    
+            layer_situa = folium.GeoJson(
+                geojson_situa,
+                name="Situação da Bacia",
+                show=False,
+                style_function=style_function,
+                highlight_function=highlight_function,
+                tooltip=folium.GeoJsonTooltip(
+                    fields=["_tooltip_html"], aliases=[""], labels=False, sticky=True
+                ),
+            )
+            layer_situa.add_to(m)
+    
+        # Demais overlays
         if geojson_c_gestoras:
             folium.GeoJson(geojson_c_gestoras, name="Células Gestoras", show=False).add_to(m)
         if geojson_poligno:
             folium.GeoJson(geojson_poligno, name="Polígonos", show=False).add_to(m)
+    
+        # ---------- Legenda fixa ----------
+        legend_html = """
+        <div style="
+            position: absolute; bottom: 20px; right: 20px; z-index: 9999;
+            background: rgba(255,255,255,.95); padding: 10px 12px; border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,.15); font-family: Arial, sans-serif; font-size: 12px; color: #333;
+        ">
+          <div style="font-weight: 700; margin-bottom: 6px;">Classificação</div>
+          <div style="display:flex; gap:6px; align-items:center; margin:3px 0;">
+            <span style="width:14px; height:14px; background:#d73027; display:inline-block; border:1px solid #666"></span> Crítico
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; margin:3px 0;">
+            <span style="width:14px; height:14px; background:#fc8d59; display:inline-block; border:1px solid #666"></span> Alerta
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; margin:3px 0;">
+            <span style="width:14px; height:14px; background:#fee08b; display:inline-block; border:1px solid #666"></span> Atenção
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; margin:3px 0;">
+            <span style="width:14px; height:14px; background:#1a9850; display:inline-block; border:1px solid #666"></span> Normal
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; margin:3px 0;">
+            <span style="width:14px; height:14px; background:#4575b4; display:inline-block; border:1px solid #666"></span> Observação
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; margin:3px 0;">
+            <span style="width:14px; height:14px; background:#999999; display:inline-block; border:1px solid #666"></span> Sem classificação
+          </div>
+        </div>
+        """
+        m.get_root().html.add_child(folium.Element(legend_html))
     
         # Pontos em FeatureGroup (também vira camada com toggle)
         fg_pontos = folium.FeatureGroup(name="Açudes (pontos)", show=True)
@@ -196,6 +280,7 @@ def render_dados():
     
         folium_static(m, width=1200, height=600)
 # --- FIM DO BLOCO ---
+
 
     # --- INDICADORES DE DESEMPENHO (KPIs) ---
     st.markdown("---")
@@ -441,4 +526,5 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
