@@ -78,8 +78,8 @@ def render_dados():
     fig_cotas = go.Figure()
     for acude in sorted(dff["Açude"].dropna().unique()):
         base = dff[dff["Açude"] == acude].sort_values("Data")
-        fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Inicial (m)"], mode="lines+markers", name=f"{acude} - Cota Inicial (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
-        fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Dia (m)"], mode="lines+markers", name=f"{acude} - Cota Dia (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
+        fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Simulada (m)"], mode="lines+markers", name=f"{acude} - Cota Simulada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
+        fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Realizada (m)"], mode="lines+markers", name=f"{acude} - Cota Realizada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
     fig_cotas.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Cota (m)", height=480)
     st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
 
@@ -87,9 +87,33 @@ def render_dados():
     fig_vol = go.Figure()
     for acude in sorted(dff["Açude"].dropna().unique()):
         base = dff[dff["Açude"] == acude].sort_values("Data")
-        fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume (m³)"], mode="lines+markers", name=f"{acude} - Volume (m³)", hovertemplate="%{x|%d/%m/%Y} • " + base["Volume_formatado"] + "<extra></extra>"))
+        fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume (m³)"], mode="lines+markers", name=f"{acude} - Volume (m³)", hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m³<extra></extra>"))
     fig_vol.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Volume (m³)", height=420)
     st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
 
-    with st.expander("📋 Ver dados filtrados"):
-        st.dataframe(dff.sort_values(["Açude", "Data"], ascending=[True, False]), use_container_width=True)
+    # --- NOVO CÓDIGO ---
+    st.subheader("📋 Tabela de Dados")
+    with st.expander("Ver dados filtrados"):
+        # Define as colunas a serem exibidas na ordem desejada
+        colunas_tabela = [
+            'Data',
+            'Açude',
+            'Município',
+            'Região Hidrográfica',
+            'Cota Simulada (m)',
+            'Cota Realizada (m)',
+            'Volume(m³)',
+            'Volume (%)',
+            'Evapor. Parcial(mm)',
+            'Cota Interm. (m)',
+            'Liberação (m³/s)',
+            'Liberação (m³)',
+            'Classificação',
+            'Coordenadas'
+        ]
+        
+        # Cria um novo DataFrame com apenas as colunas selecionadas
+        dff_tabela = dff[colunas_tabela]
+        
+        # Exibe o DataFrame filtrado e com as colunas na ordem correta
+        st.dataframe(dff_tabela.sort_values(["Açude", "Data"], ascending=[True, False]), use_container_width=True)
