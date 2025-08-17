@@ -25,10 +25,8 @@ def render_dados():
     try:
         df = pd.read_csv(google_sheet_url)
 
-        # Trata a coluna de datas
         df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
 
-        # Renomeia a coluna com o nome real 'Coordendas' para o nome esperado 'Coordenadas'
         if 'Coordendas' in df.columns:
             df.rename(columns={'Coordendas': 'Coordenadas'}, inplace=True)
         
@@ -53,7 +51,6 @@ def render_dados():
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Filtros
     with st.container():
         st.markdown('<div class="expander-rounded">', unsafe_allow_html=True)
         with st.expander("☰ Filtros (clique para expandir)", expanded=True):
@@ -104,7 +101,6 @@ def render_dados():
         st.info("Não há dados para os filtros selecionados.")
         return
 
-    # Verificação e processamento da coluna 'Coordenadas'
     if 'Coordenadas' in dff.columns:
         dff[['Latitude', 'Longitude']] = dff['Coordenadas'].str.split(',', expand=True).astype(float)
     else:
@@ -112,7 +108,6 @@ def render_dados():
         
     dff = dff.sort_values(["Açude", "Data"])
 
-    # 2. Exibir KPIs
     st.markdown("---")
     st.subheader("📊 Indicadores de Desempenho (KPIs)")
     kpi1, kpi2, kpi3 = st.columns(3)
@@ -120,7 +115,6 @@ def render_dados():
     if 'Liberação (m³/s)' in dff.columns:
         with kpi1:
             try:
-                # Converte para numérico, tratando possíveis vírgulas como separadores decimais
                 dff["Liberação (m³/s)"] = pd.to_numeric(
                     dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'), 
                     errors='coerce'
@@ -144,7 +138,6 @@ def render_dados():
         else:
             st.metric(label="Dias do Período", value="N/A")
 
-    # --- NOVO BLOCO DO MAPA FOLIUM ---
     st.markdown("---")
     st.subheader("🌍 Mapa dos Açudes")
     
@@ -153,7 +146,7 @@ def render_dados():
             "Estilo do Mapa:",
             ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
             index=0,
-            key='map_style_select' # A CHAVE ÚNICA FOI ADICIONADA AQUI
+            key='map_style_select'
         )
     
     geojson_data = load_geojson_data()
@@ -185,17 +178,19 @@ def render_dados():
             folium.GeoJson(geojson_poligno, name="Polígonos").add_to(m)
 
         for _, row in dff.iterrows():
+            # Cria um pop-up com dados, tratando a ausência de colunas
             popup_html = f"""
-            <b>Açude:</b> {row['Açude']}<br>
-            <b>Município:</b> {row['Município']}<br>
-            <b>Cota Simulada:</b> {row['Cota Simulada (m)']:.3f} m<br>
-            <b>Cota Realizada:</b> {row['Cota Realizada (m)']:.3f} m<br>
-            <b>Volume:</b> {row['Volume(m³)']} m³<br>
-            <b>Classificação:</b> {row['Classificação']}
+            <b>Açude:</b> {row.get('Açude', 'N/A')}<br>
+            <b>Município:</b> {row.get('Município', 'N/A')}<br>
+            <b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m<br>
+            <b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m<br>
+            <b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³<br>
+            <b>Classificação:</b> {row.get('Classificação', 'N/A')}
             """
+            
             folium.Marker(
                 location=[row['Latitude'], row['Longitude']],
-                tooltip=row['Açude'],
+                tooltip=row.get('Açude', 'N/A'),
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
 
@@ -205,9 +200,7 @@ def render_dados():
         folium_static(m)
     else:
         st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
-    # --- FIM DO NOVO BLOCO DO MAPA ---
 
-    # 4. Gráficos de cota e volume
     st.markdown("---")
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     
@@ -270,7 +263,6 @@ def render_dados():
     else:
         st.info("Gráfico de Volume não disponível. Coluna 'Volume(m³)' não encontrada.")
 
-    # 5. Tabela de dados
     st.markdown("---")
     st.subheader("📋 Tabela de Dados")
     with st.expander("Ver dados filtrados"):
