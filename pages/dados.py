@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -9,6 +7,9 @@ from folium.plugins import Fullscreen, MousePosition
 from utils.common import load_geojson_data
 
 def render_dados():
+    if st.button("🔄 Recarregar Página"):
+        st.experimental_rerun()
+
     st.title("📈 Simulações")
     st.markdown("""
 <div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
@@ -110,53 +111,71 @@ def render_dados():
         
     dff = dff.sort_values(["Açude", "Data"])
 
-# KPI 1: Total de Liberação (m³/h)
-
-    def to_num_ptbr(series: pd.Series) -> pd.Series:
-        # remove espaços e caracteres soltos, tira ponto de milhar e usa ponto como decimal
-        s = series.astype(str).str.strip()
-        s = s.str.replace(r"[^\d,.\-]", "", regex=True)  # mantém dígitos, vírgula, ponto, sinal
-        s = s.str.replace(".", "", regex=False)          # remove milhar
-        s = s.str.replace(",", ".", regex=False)         # vírgula -> decimal
-        return pd.to_numeric(s, errors="coerce")
+    st.markdown("---")
+    st.subheader("📊 Indicadores de Desempenho (KPIs)")
     
-    def fmt_br(valor: float, casas: int = 2) -> str:
-        if pd.isna(valor):
-            return "0,00"
-        # formata como en_US e depois inverte para pt_BR
-        s = f"{valor:,.{casas}f}"       # ex.: 12,345.67
-        s = s.replace(",", "X").replace(".", ",").replace("X", ".")  # -> 12.345,67
-        return s
+    st.markdown("""
+    <style>
+    .kpi-card {
+        background-color: #f0f4f8;
+        border: 1px solid #d9e2eb;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .kpi-card:hover {
+        transform: translateY(-5px);
+    }
+    .kpi-label {
+        font-size: 16px;
+        color: #5a7d9a;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .kpi-value {
+        font-size: 28px;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
-    with kpi_cols[0]:
-        if 'Liberação (m³/s)' in dff.columns:
-            # Converte corretamente a coluna
-            dff['Liberação (m³/s)'] = to_num_ptbr(dff['Liberação (m³/s)'])
+    # --- A CORREÇÃO ESTÁ AQUI ---
+    kpi_cols = st.columns(4)
     
-            # Última data que tem pelo menos um valor válido de liberação
-            datas_validas = dff.loc[dff['Liberação (m³/s)'].notna(), 'Data'].dropna()
-            if not datas_validas.empty:
-                ultima_data = datas_validas.max()
-                df_ultima = dff[(dff['Data'] == ultima_data)]
-    
-                total_liberacao_m3h = (df_ultima['Liberação (m³/s)'].sum(skipna=True) or 0.0) * 3600.0
-    
+    # KPI 1: Total de Liberação (m³/h)
+    if 'Liberação (m³/s)' in dff.columns:
+        with kpi_cols[0]:
+            try:
+                dff["Liberação (m³/s)"] = pd.to_numeric(
+                    dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'),
+                    errors='coerce'
+                )
+                
+                ultima_data = dff['Data'].max()
+                
+                df_ultima_data = dff[dff['Data'] == ultima_data]
+                
+                total_liberacao_m3h = df_ultima_data["Liberação (m³/s)"].sum() * 3600
+                
                 st.markdown(f"""
                 <div class="kpi-card">
-                    <div class="kpi-label">Vazão Simulada (m³/h) — {ultima_data.strftime('%d/%m/%Y')}</div>
-                    <div class="kpi-value">{fmt_br(total_liberacao_m3h)}</div>
+                    <div class="kpi-label">Liberação Total Diária (m³/h)</div>
+                    <div class="kpi-value">{total_liberacao_m3h:,.2f}</div>
                 </div>
                 """, unsafe_allow_html=True)
-            else:
-                st.markdown("""
-                <div class="kpi-card">
-                    <div class="kpi-label">Liberação Total (m³/h)</div>
-                    <div class="kpi-value">0,00</div>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
+                
+            except Exception as e:
+                st.warning(f"Não foi possível calcular a liberação total. Erro: {str(e)}")
+    else:
+        with kpi_cols[0]:
             st.warning("Coluna 'Liberação (m³/s)' não encontrada. KPI não disponível.")
-
     
     # KPI 2: Data Inicial
     with kpi_cols[1]:
@@ -203,7 +222,6 @@ def render_dados():
                 <div class="kpi-value">N/A</div>
             </div>
             """, unsafe_allow_html=True)
-
     
     st.markdown("---")
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
@@ -303,8 +321,3 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
-
-
-
-
-
