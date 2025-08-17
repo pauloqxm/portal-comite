@@ -22,17 +22,6 @@ def render_dados():
     if df.empty:
         return
         
-    # Renomeia as colunas para o padrão esperado no restante do código
-    df = df.rename(columns={
-        'Cota Inicial (m)': 'Cota Simulada (m)',
-        'Cota Dia (m)': 'Cota Realizada (m)',
-        'Volume (m³)': 'Volume(m³)',
-        'Evapor. Parcial (mm)': 'Evapor. Parcial(mm)',
-        'Volume Interm. (m³)': 'Volume Interm. (m³)',
-        'Volume Final (m³)': 'Volume Final (m³)',
-        'Cota Final (m)': 'Cota Final (m)',
-    })
-    
     st.markdown("""
     <style>
       .filter-card { border:1px solid #e6e6e6; border-radius:14px; padding:14px;
