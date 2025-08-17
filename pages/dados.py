@@ -321,29 +321,51 @@ def render_dados():
     else:
         st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
 
+#===================Volume
     st.subheader("📈 Volume (hm³)")
-    if 'Volume(m³)' in dff.columns and 'Volume (%)' in dff.columns:
+    if 'Volume(m³)' in dff.columns and 'Volume (%)' in dff.columns and 'Volume Observado (m³)' in dff.columns:
+        # Garante que as colunas são numéricas
         dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Volume (%)"] = pd.to_numeric(dff["Volume (%)"].astype(str).str.replace(',', '.'), errors='coerce')
-        
+        dff["Volume Observado (m³)"] = pd.to_numeric(dff["Volume Observado (m³)"].astype(str).str.replace(',', '.'), errors='coerce')
+    
+        # === CORREÇÃO: Converte Volume de m³ para hm³ ===
         dff['Volume (hm³)'] = dff['Volume(m³)'] / 1_000_000
+        dff['Volume Observado (hm³)'] = dff['Volume Observado (m³)'] / 1_000_000
+        # ================================================
         
         fig_vol = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
+            
+            # Traçado para o Volume Simulad
             fig_vol.add_trace(go.Scatter(
                 x=base["Data"], 
                 y=base["Volume (hm³)"], 
                 mode="lines+markers", 
-                name=f"{acude} - Volume (hm³)", 
+                name=f"{acude} - Vol. Simulado (hm³)", 
                 hovertemplate="""
                     <b>%{x|%d/%m/%Y}</b><br>
-                    <b>Volume:</b> %{y:,.2f} hm³<br>
-                    <b>Volume:</b> %{customdata:,.2f}%<br>
+                    <b>Vol. Simulado:</b> %{y:,.2f} hm³<br>
+                    <b>Vol. Percentual:</b> %{customdata:,.2f}%<br>
                     <extra></extra>
                 """,
                 customdata=base["Volume (%)"]
             ))
+            
+            # Traçado para o Volume Observado (NOVA LINHA)
+            fig_vol.add_trace(go.Scatter(
+                x=base["Data"], 
+                y=base["Volume Observado (hm³)"], 
+                mode="lines+markers", 
+                name=f"{acude} - Vol. Observado (hm³)", 
+                hovertemplate="""
+                    <b>%{x|%d/%m/%Y}</b><br>
+                    <b>Vol. Observado:</b> %{y:,.2f} hm³<br>
+                    <extra></extra>
+                """
+            ))
+    
         fig_vol.update_layout(
             template="plotly_white", 
             margin=dict(l=10, r=10, t=10, b=10), 
@@ -354,7 +376,7 @@ def render_dados():
         )
         st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
     else:
-        st.info("Gráfico de Volume não disponível. Coluna 'Volume(m³)' ou 'Volume (%)' não encontrada.")
+        st.info("Gráfico de Volume não disponível. Verifique se as colunas 'Volume(m³)', 'Volume (%)' e 'Volume Observado (m³)' existem na planilha.")
 
     st.markdown("---")
     st.subheader("📋 Tabela de Dados")
@@ -392,3 +414,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
