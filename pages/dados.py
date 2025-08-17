@@ -120,6 +120,7 @@ def render_dados():
     if 'Liberação (m³/s)' in dff.columns:
         with kpi1:
             try:
+                # Converte para numérico, tratando possíveis vírgulas como separadores decimais
                 dff["Liberação (m³/s)"] = pd.to_numeric(
                     dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'), 
                     errors='coerce'
@@ -151,7 +152,8 @@ def render_dados():
         tile_option = st.selectbox(
             "Estilo do Mapa:",
             ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
-            index=0
+            index=0,
+            key='map_style_select' # A CHAVE ÚNICA FOI ADICIONADA AQUI
         )
     
     geojson_data = load_geojson_data()
@@ -168,39 +170,41 @@ def render_dados():
         "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
     }
     
-    center_lat = dff['Latitude'].mean()
-    center_lon = dff['Longitude'].mean()
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
+    if 'Coordenadas' in dff.columns:
+        center_lat = dff['Latitude'].mean()
+        center_lon = dff['Longitude'].mean()
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
 
-    # Adiciona as camadas GeoJSON
-    folium.GeoJson(geojson_bacia, name="Bacia Hidrográfica").add_to(m)
-    folium.GeoJson(geojson_c_gestoras, name="Células Gestoras").add_to(m)
-    folium.GeoJson(geojson_poligno, name="Polígonos").add_to(m)
+        folium.LayerControl().add_to(m)
 
-    # Adiciona marcadores para cada açude
-    for _, row in dff.iterrows():
-        popup_html = f"""
-        <b>Açude:</b> {row['Açude']}<br>
-        <b>Município:</b> {row['Município']}<br>
-        <b>Cota Simulada:</b> {row['Cota Simulada (m)']:.3f} m<br>
-        <b>Cota Realizada:</b> {row['Cota Realizada (m)']:.3f} m<br>
-        <b>Volume:</b> {row['Volume(m³)']} m³<br>
-        <b>Classificação:</b> {row['Classificação']}
-        """
-        folium.Marker(
-            location=[row['Latitude'], row['Longitude']],
-            tooltip=row['Açude'],
-            popup=folium.Popup(popup_html, max_width=300)
-        ).add_to(m)
+        if geojson_bacia:
+            folium.GeoJson(geojson_bacia, name="Bacia Hidrográfica").add_to(m)
+        if geojson_c_gestoras:
+            folium.GeoJson(geojson_c_gestoras, name="Células Gestoras").add_to(m)
+        if geojson_poligno:
+            folium.GeoJson(geojson_poligno, name="Polígonos").add_to(m)
 
-    # Adiciona os plugins
-    Fullscreen().add_to(m)
-    MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
-    
-    # Adiciona o LayerControl para as camadas
-    folium.LayerControl().add_to(m)
-    
-    folium_static(m)
+        for _, row in dff.iterrows():
+            popup_html = f"""
+            <b>Açude:</b> {row['Açude']}<br>
+            <b>Município:</b> {row['Município']}<br>
+            <b>Cota Simulada:</b> {row['Cota Simulada (m)']:.3f} m<br>
+            <b>Cota Realizada:</b> {row['Cota Realizada (m)']:.3f} m<br>
+            <b>Volume:</b> {row['Volume(m³)']} m³<br>
+            <b>Classificação:</b> {row['Classificação']}
+            """
+            folium.Marker(
+                location=[row['Latitude'], row['Longitude']],
+                tooltip=row['Açude'],
+                popup=folium.Popup(popup_html, max_width=300)
+            ).add_to(m)
+
+        Fullscreen().add_to(m)
+        MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
+        
+        folium_static(m)
+    else:
+        st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
     # --- FIM DO NOVO BLOCO DO MAPA ---
 
     # 4. Gráficos de cota e volume
