@@ -172,22 +172,18 @@ def render_dados():
                     
                     if not df_primeiro_dia.empty:
                         # Calcula a liberação para 1 HORA (m³/s * 3600 segundos = m³/h)
-                        liberacao_m3h = df_primeiro_dia["Liberação (m³/s)"].iloc[0] * 3600
+                        vazao_simulada_m3h = df_primeiro_dia["Liberação (m³/s)"].iloc[0] * 3600
                         
                         st.markdown(f"""
                         <div class="kpi-card">
-                            <div class="kpi-label">Liberação Inicial (m³/h)</div>
-                            <div class="kpi-value">{liberacao_m3h:,.2f}</div>
-                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                                Data: {primeira_data.strftime('%d/%m/%Y')}<br>
-                                Período: 1 hora
-                            </div>
+                            <div class="kpi-label">Vazão Simulada (m³/h)</div>
+                            <div class="kpi-value">{vazao_simulada_m3h:,.2f}</div>
                         </div>
                         """, unsafe_allow_html=True)
                     else:
-                        st.warning("Não há dados de liberação para o primeiro dia.")
+                        st.warning("Não há dados de vazão simulada disponíveis.")
                 else:
-                    st.warning("Não há dados válidos de liberação.")
+                    st.warning("Não há dados válidos de vazão simulada.")
                     
             except Exception as e:
                 st.error(f"Erro no cálculo: {str(e)}")
@@ -195,13 +191,11 @@ def render_dados():
         with kpi_cols[0]:
             st.markdown(f"""
             <div class="kpi-card">
-                <div class="kpi-label">Liberação Inicial (m³/h)</div>
+                <div class="kpi-label">Vazão Simulada (m³/h)</div>
                 <div class="kpi-value" style="color: #e74c3c;">N/D</div>
-                <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                    Coluna não encontrada
-                </div>
             </div>
             """, unsafe_allow_html=True)
+
 
     
     # KPI 2: Data Inicial
@@ -348,4 +342,5 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
