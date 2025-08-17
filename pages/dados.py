@@ -108,7 +108,7 @@ def render_dados():
         
     dff = dff.sort_values(["Açude", "Data"])
 
-    # --- NOVO BLOCO DO MAPA FOLIUM (agora o primeiro item após os filtros) ---
+# --- NOVO BLOCO DO MAPA FOLIUM (após os filtros) ---
     st.markdown("---")
     st.subheader("🌍 Mapa dos Açudes")
     
@@ -120,35 +120,59 @@ def render_dados():
             key='map_style_select'
         )
     
-    geojson_data = load_geojson_data()
-    geojson_situa = geojson_data.get('geojson_situa', {})
+    # Se ainda não tiver Latitude/Longitude, tenta extrair de 'Coordenadas'
+    if "Coordenadas" in dff.columns and not {"Latitude","Longitude"}.issubset(dff.columns):
+        latlon = dff["Coordenadas"].astype(str).str.split(",", n=1, expand=True)
+        if latlon.shape[1] == 2:
+            dff["Latitude"]  = pd.to_numeric(latlon[0].str.replace(",", "."), errors="coerce")
+            dff["Longitude"] = pd.to_numeric(latlon[1].str.replace(",", "."), errors="coerce")
+    
+    geojson_data = load_geojson_data()  # se não tiver, substitua por {} para cada um
+    geojson_situa      = geojson_data.get('geojson_situa', {})
     geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
-    geojson_poligno = geojson_data.get('geojson_poligno', {})
-
+    geojson_poligno    = geojson_data.get('geojson_poligno', {})
+    
     tile_config = {
-        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
-        "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
-        "CartoDB positron": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
-        "CartoDB dark_matter": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
-        "Esri Satellite": {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
-        "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+        "OpenStreetMap":     {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
+        "Stamen Terrain":    {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+        "Stamen Toner":      {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+        "CartoDB positron":  {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
+        "CartoDB dark_matter":{"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
+        "Esri Satellite":    {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
     }
     
-    if 'Coordenadas' in dff.columns:
-        center_lat = dff['Latitude'].mean()
-        center_lon = dff['Longitude'].mean()
-        m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
-
-        folium.LayerControl().add_to(m)
-
+    if {"Latitude","Longitude"}.issubset(dff.columns):
+        mapa_df = dff.dropna(subset=["Latitude","Longitude"])
+    else:
+        mapa_df = pd.DataFrame()
+    
+    if mapa_df.empty:
+        st.info("Mapa não disponível: não há coordenadas válidas.")
+    else:
+        center_lat = float(mapa_df["Latitude"].mean())
+        center_lon = float(mapa_df["Longitude"].mean())
+    
+        # IMPORTANTE: iniciar sem tiles para poder adicionar várias bases
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=None)
+    
+        # Bases como TileLayer (uma marcada com show=True)
+        for name, cfg in tile_config.items():
+            folium.TileLayer(
+                tiles=cfg["tiles"], attr=cfg["attr"], name=name,
+                control=True, show=(name == tile_option)
+            ).add_to(m)
+    
+        # Overlays nomeados (aparecem no LayerControl)
         if geojson_situa:
-            folium.GeoJson(geojson_situa, name="Situação da Bacia").add_to(m)
+            folium.GeoJson(geojson_situa, name="Situação da Bacia", show=False).add_to(m)
         if geojson_c_gestoras:
-            folium.GeoJson(geojson_c_gestoras, name="Células Gestoras").add_to(m)
+            folium.GeoJson(geojson_c_gestoras, name="Células Gestoras", show=False).add_to(m)
         if geojson_poligno:
-            folium.GeoJson(geojson_poligno, name="Polígonos").add_to(m)
-
-        for _, row in dff.iterrows():
+            folium.GeoJson(geojson_poligno, name="Polígonos", show=False).add_to(m)
+    
+        # Pontos em FeatureGroup (também vira camada com toggle)
+        fg_pontos = folium.FeatureGroup(name="Açudes (pontos)", show=True)
+        for _, row in mapa_df.iterrows():
             popup_html = f"""
             <b>Açude:</b> {row.get('Açude', 'N/A')}<br>
             <b>Município:</b> {row.get('Município', 'N/A')}<br>
@@ -157,20 +181,21 @@ def render_dados():
             <b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³<br>
             <b>Classificação:</b> {row.get('Classificação', 'N/A')}
             """
-            
             folium.Marker(
-                location=[row['Latitude'], row['Longitude']],
+                location=[row["Latitude"], row["Longitude"]],
                 tooltip=row.get('Açude', 'N/A'),
-                popup=folium.Popup(popup_html, max_width=300)
-            ).add_to(m)
-
+                popup=folium.Popup(popup_html, max_width=300),
+                icon=folium.Icon(color="green", icon="tint", prefix="fa")
+            ).add_to(fg_pontos)
+        fg_pontos.add_to(m)
+    
+        # Controles (adicionar DEPOIS das camadas)
         Fullscreen().add_to(m)
         MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
-        
-        folium_static(m)
-    else:
-        st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
-    # --- FIM DO BLOCO DO MAPA ---
+        folium.LayerControl(collapsed=False).add_to(m)
+    
+        folium_static(m, width=1200, height=600)
+# --- FIM DO BLOCO ---
 
     # --- INDICADORES DE DESEMPENHO (KPIs) ---
     st.markdown("---")
@@ -416,3 +441,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
