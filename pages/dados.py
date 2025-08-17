@@ -109,7 +109,7 @@ def render_dados():
     dff = dff.sort_values(["Açude", "Data"])
 
 
-# --- INÍCIO DO BLOCO DO MAPA ---
+# --- BLOCO DO MAPA ATUALIZADO COM CATEGORIAS CORRETAS ---
     st.subheader("🌍 Mapa dos Açudes")
     with st.expander("Configurações do Mapa", expanded=False):
         tile_option = st.selectbox(
@@ -138,71 +138,79 @@ def render_dados():
         center_lon = dff['Longitude'].mean()
         m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
     
-        # === SOLUÇÃO PARA MULTIPOLYGON ===
-        def get_classification_color(properties):
-            classificacao = properties.get('Classificação') or \
-                           properties.get('classificacao') or \
-                           properties.get('CLASSIFICACAO', 'Sem classificação')
+        # === FUNÇÕES ATUALIZADAS COM AS CATEGORIAS CORRETAS ===
+        def get_classification_color(props):
+            # Verifica todas as variações possíveis do nome da propriedade
+            classificacao = props.get('Classificação') or props.get('classificacao') or props.get('CLASSIFICACAO', 'Sem classificação')
             
+            # Mapa de cores atualizado para as categorias fornecidas
             color_map = {
-                "Crítico": "#d73027",
-                "Alerta": "#fc8d59",
-                "Atenção": "#fee08b",
-                "Normal": "#1a9850",
-                "Observação": "#4575b4",
-                "Sem classificação": "#999999"
+                "Criticidade Alta": "#d73027",      # Vermelho
+                "Criticidade Média": "#fc8d59",     # Laranja
+                "Criticidade Baixa": "#fee08b",     # Amarelo
+                "Fora de Criticidade": "#1a9850",   # Verde
+                "Sem classificação": "#999999"      # Cinza
             }
             return color_map.get(classificacao, "#999999")
     
-        # Função de estilo para MultiPolygon
-        def style_multi_polygon(feature):
+        # Função de estilo otimizada para MultiPolygon
+        def style_function(feature):
             return {
-                'fillColor': get_classification_color(feature['properties']),
+                'fillColor': get_classification_color(feature.get('properties', {})),
                 'color': '#555555',  # Cor da borda
-                'weight': 1,
+                'weight': 1.5,
                 'fillOpacity': 0.7,
                 'opacity': 0.9
             }
     
-        # Adiciona a camada GeoJSON MultiPolygon
+        # Adiciona a camada GeoJSON
         if geojson_situa and geojson_situa.get('type') == 'FeatureCollection':
-            # Verifica se é um MultiPolygon
-            if any(feature['geometry']['type'] == 'MultiPolygon' for feature in geojson_situa['features']):
-                # Cria um grupo para as features
-                situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
-                
-                # Processa cada feature individualmente
-                for feature in geojson_situa['features']:
-                    if feature['geometry']['type'] == 'MultiPolygon':
-                        # Cria um GeoJson para cada MultiPolygon
-                        folium.GeoJson(
-                            feature,
-                            style_function=style_multi_polygon,
-                            tooltip=folium.GeoJsonTooltip(
-                                fields=['Classificação'],
-                                aliases=['Classificação:'],
-                                sticky=True
-                            )
-                        ).add_to(situa_group)
-                
-                situa_group.add_to(m)
+            # DEBUG: Mostra a estrutura do GeoJSON no console
+            st.write("Estrutura do GeoJSON (geojson_situa):", geojson_situa)
+            
+            # Cria um grupo para a camada
+            situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
+            
+            # Adiciona o GeoJSON com o estilo personalizado
+            folium.GeoJson(
+                geojson_situa,
+                style_function=style_function,
+                tooltip=folium.GeoJsonTooltip(
+                    fields=['Classificação'],
+                    aliases=['Situação:'],
+                    localize=True,
+                    sticky=True
+                )
+            ).add_to(situa_group)
+            
+            situa_group.add_to(m)
     
         # Adiciona outras camadas
         if geojson_c_gestoras:
             folium.GeoJson(
                 geojson_c_gestoras, 
                 name="Células Gestoras",
-                style_function=lambda x: {'color': '#555555', 'fillColor': '#555555', 'fillOpacity': 0.1}
+                style_function=lambda x: {
+                    'color': '#555555',
+                    'fillColor': '#555555',
+                    'weight': 1,
+                    'fillOpacity': 0.1
+                }
             ).add_to(m)
             
         if geojson_poligno:
             folium.GeoJson(
                 geojson_poligno, 
                 name="Polígonos",
-                style_function=lambda x: {'color': '#888888', 'fillColor': '#888888', 'fillOpacity': 0.2}
+                style_function=lambda x: {
+                    'color': '#888888',
+                    'fillColor': '#888888',
+                    'weight': 1,
+                    'fillOpacity': 0.2
+                }
             ).add_to(m)
     
-        # Adiciona os marcadores dos açudes
+        # Adiciona os marcadores dos açudes com as cores correspondentes
         for _, row in dff.iterrows():
             classificacao = row.get('Classificação', 'Sem classificação')
             color_marker = get_classification_color({'Classificação': classificacao})
@@ -227,33 +235,29 @@ def render_dados():
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
     
-        # Adiciona legenda
+        # Atualiza a legenda com as novas categorias
         legend_html = '''
         <div style="position: fixed; 
-                    bottom: 50px; left: 50px; width: 150px; 
+                    bottom: 50px; left: 50px; width: 180px; 
                     border:2px solid grey; z-index:9999; 
                     font-size:14px; background:white;
                     padding: 10px;">
             <p style="margin:0; padding:0; font-weight:bold;">Legenda:</p>
             <div style="display: flex; align-items: center; margin: 5px 0;">
                 <div style="width:20px; height:20px; background:#d73027; margin-right:5px;"></div>
-                <span>Crítico</span>
+                <span>Criticidade Alta</span>
             </div>
             <div style="display: flex; align-items: center; margin: 5px 0;">
                 <div style="width:20px; height:20px; background:#fc8d59; margin-right:5px;"></div>
-                <span>Alerta</span>
+                <span>Criticidade Média</span>
             </div>
             <div style="display: flex; align-items: center; margin: 5px 0;">
                 <div style="width:20px; height:20px; background:#fee08b; margin-right:5px;"></div>
-                <span>Atenção</span>
+                <span>Criticidade Baixa</span>
             </div>
             <div style="display: flex; align-items: center; margin: 5px 0;">
                 <div style="width:20px; height:20px; background:#1a9850; margin-right:5px;"></div>
-                <span>Normal</span>
-            </div>
-            <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#4575b4; margin-right:5px;"></div>
-                <span>Observação</span>
+                <span>Fora de Criticidade</span>
             </div>
             <div style="display: flex; align-items: center; margin: 5px 0;">
                 <div style="width:20px; height:20px; background:#999999; margin-right:5px;"></div>
@@ -516,6 +520,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
