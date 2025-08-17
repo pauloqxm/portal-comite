@@ -18,10 +18,17 @@ def render_dados():
 </div>
 """, unsafe_allow_html=True)
 
-    df = load_simulacoes_data()
-    if df.empty:
+    # --- NOVO BLOCO DE CARREGAMENTO DE DADOS COM TRATAMENTO DE ERRO ---
+    try:
+        df = load_simulacoes_data()
+    except Exception as e:
+        st.error(f"Erro ao carregar os dados. A planilha pode ter colunas faltando. Detalhes do erro: {e}")
         return
-        
+
+    if df.empty:
+        st.info("A planilha de simulações está vazia. Por favor, verifique os dados.")
+        return
+    
     st.markdown("""
     <style>
       .filter-card { border:1px solid #e6e6e6; border-radius:14px; padding:14px;
