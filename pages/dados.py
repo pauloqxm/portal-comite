@@ -292,10 +292,13 @@ def render_dados():
         st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
     else:
         st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
-    
+
+#===================Volume
     st.subheader("📈 Volume (m³)")
-    if 'Volume(m³)' in dff.columns:
+    if 'Volume(m³)' in dff.columns and 'Volume (%)' in dff.columns:
+        # Garante que as colunas são numéricas
         dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
+        dff["Volume (%)"] = pd.to_numeric(dff["Volume (%)"].astype(str).str.replace(',', '.'), errors='coerce')
         
         fig_vol = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
@@ -305,7 +308,13 @@ def render_dados():
                 y=base["Volume(m³)"], 
                 mode="lines+markers", 
                 name=f"{acude} - Volume (m³)", 
-                hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m³<extra></extra>"
+                hovertemplate="""
+                    <b>%{x|%d/%m/%Y}</b><br>
+                    <b>Volume:</b> %{y:,.2f} m³<br>
+                    <b>Volume:</b> %{customdata:,.2f}%<br>
+                    <extra></extra>
+                """,
+                customdata=base["Volume (%)"]
             ))
         fig_vol.update_layout(
             template="plotly_white", 
@@ -355,5 +364,6 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
