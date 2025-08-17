@@ -20,6 +20,7 @@ def load_geojson_data():
         "poligno_municipios.geojson": "geojson_poligno",
         "bacia_banabuiu.geojson": "geojson_bacia",
         "pontos_controle.geojson": "geojson_pontos",
+        "situa_municipio.geojson": "geojson_situa",
     }
     data = {}
     for filename, var_name in files.items():
@@ -411,5 +412,6 @@ def salvar_em_planilha(dados_formulario):
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
         return False
+
 
 
