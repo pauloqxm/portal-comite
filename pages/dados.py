@@ -222,7 +222,7 @@ def render_dados():
             ultima_data = dff['Data'].max().strftime('%d/%m/%Y')
             st.markdown(f"""
             <div class="kpi-card">
-                <div class="kpi-label">Última Atualização</div>
+                <div class="kpi-label">Data Final</div>
                 <div class="kpi-value">{ultima_data}</div>
             </div>
             """, unsafe_allow_html=True)
@@ -350,6 +350,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
