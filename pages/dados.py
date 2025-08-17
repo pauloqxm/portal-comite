@@ -110,6 +110,7 @@ def render_dados():
 
 
 # --- BLOCO DO MAPA ATUALIZADO COM CATEGORIAS CORRETAS ---
+   
     st.subheader("🌍 Mapa dos Açudes")
     with st.expander("Configurações do Mapa", expanded=False):
         tile_option = st.selectbox(
@@ -123,6 +124,13 @@ def render_dados():
     geojson_situa = geojson_data.get('geojson_situa', {})
     geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
     geojson_poligno = geojson_data.get('geojson_poligno', {})
+    
+    # DEBUG: Verificação segura da estrutura do GeoJSON
+    if st.checkbox("Mostrar informações técnicas do GeoJSON (para debug)", False):
+        if geojson_situa:
+            st.json(geojson_situa, expanded=False)
+        else:
+            st.warning("GeoJSON situa não carregado ou vazio")
     
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
@@ -138,52 +146,47 @@ def render_dados():
         center_lon = dff['Longitude'].mean()
         m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
     
-        # === FUNÇÕES ATUALIZADAS COM AS CATEGORIAS CORRETAS ===
+        # Função para obter cor baseada na classificação
         def get_classification_color(props):
-            # Verifica todas as variações possíveis do nome da propriedade
             classificacao = props.get('Classificação') or props.get('classificacao') or props.get('CLASSIFICACAO', 'Sem classificação')
             
-            # Mapa de cores atualizado para as categorias fornecidas
             color_map = {
-                "Criticidade Alta": "#d73027",      # Vermelho
-                "Criticidade Média": "#fc8d59",     # Laranja
-                "Criticidade Baixa": "#fee08b",     # Amarelo
-                "Fora de Criticidade": "#1a9850",   # Verde
-                "Sem classificação": "#999999"      # Cinza
+                "Criticidade Alta": "#d73027",
+                "Criticidade Média": "#fc8d59",
+                "Criticidade Baixa": "#fee08b",
+                "Fora de Criticidade": "#1a9850",
+                "Sem classificação": "#999999"
             }
             return color_map.get(classificacao, "#999999")
     
-        # Função de estilo otimizada para MultiPolygon
+        # Função de estilo para os polígonos
         def style_function(feature):
             return {
                 'fillColor': get_classification_color(feature.get('properties', {})),
-                'color': '#555555',  # Cor da borda
+                'color': '#555555',
                 'weight': 1.5,
                 'fillOpacity': 0.7,
                 'opacity': 0.9
             }
     
-        # Adiciona a camada GeoJSON
-        if geojson_situa and geojson_situa.get('type') == 'FeatureCollection':
-            # DEBUG: Mostra a estrutura do GeoJSON no console
-            st.write("Estrutura do GeoJSON (geojson_situa):", geojson_situa)
-            
-            # Cria um grupo para a camada
-            situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
-            
-            # Adiciona o GeoJSON com o estilo personalizado
-            folium.GeoJson(
-                geojson_situa,
-                style_function=style_function,
-                tooltip=folium.GeoJsonTooltip(
-                    fields=['Classificação'],
-                    aliases=['Situação:'],
-                    localize=True,
-                    sticky=True
-                )
-            ).add_to(situa_group)
-            
-            situa_group.add_to(m)
+        # Adiciona a camada GeoJSON com tratamento de erro
+        if geojson_situa and isinstance(geojson_situa, dict) and geojson_situa.get('type') == 'FeatureCollection':
+            try:
+                situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
+                
+                folium.GeoJson(
+                    geojson_situa,
+                    style_function=style_function,
+                    tooltip=folium.GeoJsonTooltip(
+                        fields=['Classificação'],
+                        aliases=['Situação:'],
+                        sticky=True
+                    )
+                ).add_to(situa_group)
+                
+                situa_group.add_to(m)
+            except Exception as e:
+                st.error(f"Erro ao carregar GeoJSON: {str(e)}")
     
         # Adiciona outras camadas
         if geojson_c_gestoras:
@@ -210,7 +213,7 @@ def render_dados():
                 }
             ).add_to(m)
     
-        # Adiciona os marcadores dos açudes com as cores correspondentes
+        # Adiciona marcadores
         for _, row in dff.iterrows():
             classificacao = row.get('Classificação', 'Sem classificação')
             color_marker = get_classification_color({'Classificação': classificacao})
@@ -235,7 +238,7 @@ def render_dados():
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
     
-        # Atualiza a legenda com as novas categorias
+        # Legenda
         legend_html = '''
         <div style="position: fixed; 
                     bottom: 50px; left: 50px; width: 180px; 
@@ -520,6 +523,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
