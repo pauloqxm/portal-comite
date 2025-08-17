@@ -109,35 +109,113 @@ def render_dados():
         
     dff = dff.sort_values(["Açude", "Data"])
 
+#=============== Indicadores de Desempenho (KPIs)  
+
     st.markdown("---")
     st.subheader("📊 Indicadores de Desempenho (KPIs)")
-    kpi1, kpi2, kpi3 = st.columns(3)
-
+    
+    # Define o estilo CSS para os cartões de KPI
+    st.markdown("""
+    <style>
+    .kpi-card {
+        background-color: #f0f4f8;
+        border: 1px solid #d9e2eb;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .kpi-card:hover {
+        transform: translateY(-5px);
+    }
+    .kpi-label {
+        font-size: 16px;
+        color: #5a7d9a;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .kpi-value {
+        font-size: 28px;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    kpi_cols = st.columns(4)
+    
+    # KPI 1: Total de Liberação (m³/h)
     if 'Liberação (m³/s)' in dff.columns:
-        with kpi1:
+        with kpi_cols[0]:
             try:
                 dff["Liberação (m³/s)"] = pd.to_numeric(
-                    dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'), 
+                    dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'),
                     errors='coerce'
                 )
-                total_liberacao = dff["Liberação (m³/s)"].sum()
-                st.metric(label="Total de Liberação (m³/s)", value=f"{total_liberacao:.2f}")
+                # Converte de m³/s para m³/h (multiplica por 3600)
+                total_liberacao_m3h = dff["Liberação (m³/s)"].sum() * 3600
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Total de Liberação (m³/h)</div>
+                    <div class="kpi-value">{total_liberacao_m3h:,.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
             except Exception as e:
                 st.warning(f"Não foi possível calcular a liberação total. Erro: {str(e)}")
     else:
-        with kpi1:
+        with kpi_cols[0]:
             st.warning("Coluna 'Liberação (m³/s)' não encontrada. KPI não disponível.")
-
-    with kpi2:
+    
+    # KPI 2: Data Inicial
+    with kpi_cols[1]:
+        if not dff.empty:
+            primeira_data = dff["Data"].min().strftime('%d/%m/%Y')
+            st.markdown(f"""
+            <div class="kpi-card">
+                <div class="kpi-label">Data Inicial</div>
+                <div class="kpi-value">{primeira_data}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="kpi-card">
+                <div class="kpi-label">Data Inicial</div>
+                <div class="kpi-value">N/A</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # KPI 3: Açudes Monitorados
+    with kpi_cols[2]:
         total_acudes = dff["Açude"].nunique()
-        st.metric(label="Açudes Monitorados", value=total_acudes)
-
-    with kpi3:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">Açudes Monitorados</div>
+            <div class="kpi-value">{total_acudes}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # KPI 4: Dias do Período
+    with kpi_cols[3]:
         if periodo:
             dias = (dff["Data"].max() - dff["Data"].min()).days
-            st.metric(label="Dias do Período", value=dias)
+            st.markdown(f"""
+            <div class="kpi-card">
+                <div class="kpi-label">Dias do Período</div>
+                <div class="kpi-value">{dias}</div>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.metric(label="Dias do Período", value="N/A")
+            st.markdown("""
+            <div class="kpi-card">
+                <div class="kpi-label">Dias do Período</div>
+                <div class="kpi-value">N/A</div>
+            </div>
+            """, unsafe_allow_html=True)
 
     
     st.markdown("---")
@@ -238,3 +316,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
