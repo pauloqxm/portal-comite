@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 from utils.common import load_simulacoes_data
 
 def render_dados():
@@ -10,8 +11,9 @@ def render_dados():
     <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
         <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
         • Linha comparativa de <b>Cota Simulada (m)</b> e <b>Cota Realizada (m)</b><br>
-        • Filtros por <b>Data</b> e <b>Açude</b><br>
-        • Linha de <b>Volume (m³)</b> ao longo do tempo
+        • Filtros por <b>Data</b>, <b>Açude</b>, <b>Município</b> e <b>Classificação</b><br>
+        • Mapa interativo com camadas<br>
+        • Indicadores de <b>KPIs</b> e tabela de dados
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -20,7 +22,7 @@ def render_dados():
     if df.empty:
         return
         
-    # --- Renomeia as colunas para o padrão esperado no restante do código ---
+    # Renomeia as colunas para o padrão esperado no restante do código
     df = df.rename(columns={
         'Cota Inicial (m)': 'Cota Simulada (m)',
         'Cota Dia (m)': 'Cota Realizada (m)',
@@ -44,15 +46,23 @@ def render_dados():
     </style>
     """, unsafe_allow_html=True)
 
+    # 1. Filtros
     with st.container():
         st.markdown('<div class="expander-rounded">', unsafe_allow_html=True)
         with st.expander("☰ Filtros (clique para expandir)", expanded=True):
             st.markdown('<div class="filter-card"><div class="filter-title">Filtros de Visualização</div>', unsafe_allow_html=True)
-            c1, c2 = st.columns([2, 3])
-            with c1:
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
                 opcoes_acudes = sorted(df["Açude"].dropna().unique().tolist())
                 acudes_sel = st.multiselect("Açude", options=opcoes_acudes, default=opcoes_acudes)
-            with c2:
+            with col2:
+                opcoes_municipios = sorted(df["Município"].dropna().unique().tolist())
+                municipios_sel = st.multiselect("Município", options=opcoes_municipios, default=opcoes_municipios)
+            with col3:
+                opcoes_classificacao = sorted(df["Classificação"].dropna().unique().tolist())
+                classificacao_sel = st.multiselect("Classificação", options=opcoes_classificacao, default=opcoes_classificacao)
+            with col4:
                 datas_validas = df["Data"]
                 if not datas_validas.empty:
                     data_min = datas_validas.min().date()
@@ -72,6 +82,10 @@ def render_dados():
     dff = df.copy()
     if acudes_sel:
         dff = dff[dff["Açude"].isin(acudes_sel)]
+    if municipios_sel:
+        dff = dff[dff["Município"].isin(municipios_sel)]
+    if classificacao_sel:
+        dff = dff[dff["Classificação"].isin(classificacao_sel)]
     if periodo:
         if len(periodo) == 1:
             ini = fim = pd.to_datetime(periodo[0])
@@ -83,13 +97,70 @@ def render_dados():
         st.info("Não há dados para os filtros selecionados.")
         return
 
+    # Certifique-se de que a coluna de Coordenadas está no formato correto
+    dff[['Latitude', 'Longitude']] = dff['Coordenadas'].str.split(',', expand=True).astype(float)
+    
     dff = dff.sort_values(["Açude", "Data"])
 
+    # 2. Exibir KPIs
+    st.markdown("---")
+    st.subheader("📊 Indicadores de Desempenho (KPIs)")
+    kpi1, kpi2, kpi3 = st.columns(3)
+
+    with kpi1:
+        # Soma da liberação no período filtrado
+        total_liberacao = dff["Liberação (m³/s)"].sum()
+        st.metric(label="Total de Liberação (m³/s)", value=f"{total_liberacao:.2f}")
+
+    with kpi2:
+        # Contagem de Açudes Únicos
+        total_acudes = dff["Açude"].nunique()
+        st.metric(label="Açudes Monitorados", value=total_acudes)
+
+    with kpi3:
+        # Número de dias no período
+        if periodo:
+            dias = (dff["Data"].max() - dff["Data"].min()).days
+            st.metric(label="Dias do Período", value=dias)
+        else:
+            st.metric(label="Dias do Período", value="N/A")
+
+    # 3. Mapa com camadas
+    st.markdown("---")
+    st.subheader("🗺️ Mapa dos Açudes e Cotas")
+
+    # Mapa interativo com camada de pontos para as coordenadas
+    fig_mapa = px.scatter_mapbox(
+        dff,
+        lat="Latitude",
+        lon="Longitude",
+        color="Classificação",
+        hover_name="Açude",
+        hover_data={
+            "Cota Simulada (m)": True,
+            "Cota Realizada (m)": True,
+            "Município": True,
+            "Liberação (m³/s)": True,
+            "Coordenadas": False,
+            "Data": True
+        },
+        zoom=7,
+        mapbox_style="carto-positron",
+        title="Localização e Status dos Açudes"
+    )
+
+    fig_mapa.update_layout(
+        margin={"r":0,"t":40,"l":0,"b":0},
+        legend_title_text="Classificação"
+    )
+    st.plotly_chart(fig_mapa, use_container_width=True)
+
+    # 4. Gráficos de cota e volume
+    st.markdown("---")
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     fig_cotas = go.Figure()
     for acude in sorted(dff["Açude"].dropna().unique()):
         base = dff[dff["Açude"] == acude].sort_values("Data")
-        # --- Usa as colunas renomeadas para os gráficos ---
         fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Simulada (m)"], mode="lines+markers", name=f"{acude} - Cota Simulada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
         fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Realizada (m)"], mode="lines+markers", name=f"{acude} - Cota Realizada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
     fig_cotas.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Cota (m)", height=480)
@@ -103,6 +174,8 @@ def render_dados():
     fig_vol.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Volume (m³)", height=420)
     st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
 
+    # 5. Tabela de dados
+    st.markdown("---")
     st.subheader("📋 Tabela de Dados")
     with st.expander("Ver dados filtrados"):
         colunas_tabela = [
