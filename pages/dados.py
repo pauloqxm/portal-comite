@@ -294,23 +294,27 @@ def render_dados():
         st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
 
 #===================Volume
-    st.subheader("📈 Volume (m³)")
+    st.subheader("📈 Volume (hm³)")
     if 'Volume(m³)' in dff.columns and 'Volume (%)' in dff.columns:
         # Garante que as colunas são numéricas
         dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Volume (%)"] = pd.to_numeric(dff["Volume (%)"].astype(str).str.replace(',', '.'), errors='coerce')
+        
+        # === CORREÇÃO: Converte Volume de m³ para hm³ ===
+        dff['Volume (hm³)'] = dff['Volume(m³)'] / 1_000_000
+        # ================================================
         
         fig_vol = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
             fig_vol.add_trace(go.Scatter(
                 x=base["Data"], 
-                y=base["Volume(m³)"], 
+                y=base["Volume (hm³)"], 
                 mode="lines+markers", 
-                name=f"{acude} - Volume (m³)", 
+                name=f"{acude} - Volume (hm³)", 
                 hovertemplate="""
                     <b>%{x|%d/%m/%Y}</b><br>
-                    <b>Volume:</b> %{y:,.2f} m³<br>
+                    <b>Volume:</b> %{y:,.2f} hm³<br>
                     <b>Volume:</b> %{customdata:,.2f}%<br>
                     <extra></extra>
                 """,
@@ -321,12 +325,14 @@ def render_dados():
             margin=dict(l=10, r=10, t=10, b=10), 
             legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), 
             xaxis_title="Data", 
-            yaxis_title="Volume (m³)", 
+            yaxis_title="Volume (hm³)", 
             height=420
         )
         st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
     else:
-        st.info("Gráfico de Volume não disponível. Coluna 'Volume(m³)' não encontrada.")
+        st.info("Gráfico de Volume não disponível. Coluna 'Volume(m³)' ou 'Volume (%)' não encontrada.")
+
+#======================TBELA DE DADOS
 
     st.markdown("---")
     st.subheader("📋 Tabela de Dados")
@@ -364,6 +370,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
