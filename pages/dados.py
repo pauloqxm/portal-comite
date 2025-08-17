@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-from utils.common import load_simulacoes_data
 
 def render_dados():
     st.title("📈 Simulações")
@@ -18,17 +17,24 @@ def render_dados():
 </div>
 """, unsafe_allow_html=True)
 
-    # --- NOVO BLOCO DE CARREGAMENTO DE DADOS COM TRATAMENTO DE ERRO ---
+    # --- CARREGA A PLANILHA DIRETAMENTE DO GOOGLE SHEETS ---
+    google_sheet_url = "https://docs.google.com/spreadsheets/d/1C40uaNmLUeu-k_FGEPZOgF8FwpSU00C9PtQu8Co4AUI/gviz/tq?tqx=out:csv&sheet=simulacoes_data"
+    
     try:
-        df = load_simulacoes_data()
+        # Lê o CSV da URL
+        df = pd.read_csv(google_sheet_url)
+
+        # Trata a coluna de datas
+        df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
+
     except Exception as e:
-        st.error(f"Erro ao carregar os dados. A planilha pode ter colunas faltando. Detalhes do erro: {e}")
+        st.error(f"Erro ao carregar os dados da planilha. Verifique se o link está correto e se a planilha está pública. Detalhes do erro: {e}")
         return
 
     if df.empty:
         st.info("A planilha de simulações está vazia. Por favor, verifique os dados.")
         return
-    
+
     st.markdown("""
     <style>
       .filter-card { border:1px solid #e6e6e6; border-radius:14px; padding:14px;
