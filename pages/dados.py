@@ -9,7 +9,7 @@ def render_dados():
 <div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
     <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
         <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
-        • Linha comparativa de <b>Cota Inicial (m)</b> e <b>Cota Dia (m)</b><br>
+        • Linha comparativa de <b>Cota Simulada (m)</b> e <b>Cota Realizada (m)</b><br>
         • Filtros por <b>Data</b> e <b>Açude</b><br>
         • Linha de <b>Volume (m³)</b> ao longo do tempo
     </p>
@@ -19,7 +19,18 @@ def render_dados():
     df = load_simulacoes_data()
     if df.empty:
         return
-
+        
+    # --- Renomeia as colunas para o padrão esperado no restante do código ---
+    df = df.rename(columns={
+        'Cota Inicial (m)': 'Cota Simulada (m)',
+        'Cota Dia (m)': 'Cota Realizada (m)',
+        'Volume (m³)': 'Volume(m³)',
+        'Evapor. Parcial (mm)': 'Evapor. Parcial(mm)',
+        'Volume Interm. (m³)': 'Volume Interm. (m³)',
+        'Volume Final (m³)': 'Volume Final (m³)',
+        'Cota Final (m)': 'Cota Final (m)',
+    })
+    
     st.markdown("""
     <style>
       .filter-card { border:1px solid #e6e6e6; border-radius:14px; padding:14px;
@@ -74,10 +85,11 @@ def render_dados():
 
     dff = dff.sort_values(["Açude", "Data"])
 
-    st.subheader("📈 Cotas (Cota Inicial x Cota Dia)")
+    st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     fig_cotas = go.Figure()
     for acude in sorted(dff["Açude"].dropna().unique()):
         base = dff[dff["Açude"] == acude].sort_values("Data")
+        # --- Usa as colunas renomeadas para os gráficos ---
         fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Simulada (m)"], mode="lines+markers", name=f"{acude} - Cota Simulada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
         fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Realizada (m)"], mode="lines+markers", name=f"{acude} - Cota Realizada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
     fig_cotas.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Cota (m)", height=480)
@@ -87,14 +99,12 @@ def render_dados():
     fig_vol = go.Figure()
     for acude in sorted(dff["Açude"].dropna().unique()):
         base = dff[dff["Açude"] == acude].sort_values("Data")
-        fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume (m³)"], mode="lines+markers", name=f"{acude} - Volume (m³)", hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m³<extra></extra>"))
+        fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume(m³)"], mode="lines+markers", name=f"{acude} - Volume (m³)", hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m³<extra></extra>"))
     fig_vol.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Volume (m³)", height=420)
     st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
 
-    # --- NOVO CÓDIGO ---
     st.subheader("📋 Tabela de Dados")
     with st.expander("Ver dados filtrados"):
-        # Define as colunas a serem exibidas na ordem desejada
         colunas_tabela = [
             'Data',
             'Açude',
@@ -112,8 +122,6 @@ def render_dados():
             'Coordenadas'
         ]
         
-        # Cria um novo DataFrame com apenas as colunas selecionadas
         dff_tabela = dff[colunas_tabela]
         
-        # Exibe o DataFrame filtrado e com as colunas na ordem correta
         st.dataframe(dff_tabela.sort_values(["Açude", "Data"], ascending=[True, False]), use_container_width=True)
