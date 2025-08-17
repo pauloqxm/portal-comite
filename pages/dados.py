@@ -140,40 +140,55 @@ def render_dados():
 
     
     st.markdown("---")
-    st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
+st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
+
+if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
+    # Garante que as colunas são numéricas
+    dff["Cota Simulada (m)"] = pd.to_numeric(dff["Cota Simulada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
+    dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
+
+    fig_cotas = go.Figure()
     
-    if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
-        dff["Cota Simulada (m)"] = pd.to_numeric(dff["Cota Simulada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
-        dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
+    # Define as cores para os traçados
+    colors = {
+        'Cota Simulada (m)': '#1f77b4',  # Azul padrão
+        'Cota Realizada (m)': '#ff7f0e'  # Laranja padrão
+    }
+
+    for acude in sorted(dff["Açude"].dropna().unique()):
+        base = dff[dff["Açude"] == acude].sort_values("Data")
         
-        fig_cotas = go.Figure()
-        for acude in sorted(dff["Açude"].dropna().unique()):
-            base = dff[dff["Açude"] == acude].sort_values("Data")
-            fig_cotas.add_trace(go.Scatter(
-                x=base["Data"], 
-                y=base["Cota Simulada (m)"], 
-                mode="lines+markers", 
-                name=f"{acude} - Cota Simulada (m)", 
-                hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
-            ))
-            fig_cotas.add_trace(go.Scatter(
-                x=base["Data"], 
-                y=base["Cota Realizada (m)"], 
-                mode="lines+markers", 
-                name=f"{acude} - Cota Realizada (m)", 
-                hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
-            ))
-        fig_cotas.update_layout(
-            template="plotly_white", 
-            margin=dict(l=10, r=10, t=10, b=10), 
-            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), 
-            xaxis_title="Data", 
-            yaxis_title="Cota (m)", 
-            height=480
-        )
-        st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
-    else:
-        st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
+        # Traçado para Cota Simulada
+        fig_cotas.add_trace(go.Scatter(
+            x=base["Data"],  
+            y=base["Cota Simulada (m)"],  
+            mode="lines+markers",  
+            name=f"{acude} - Cota Simulada (m)",  
+            hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>",
+            line=dict(color=colors['Cota Simulada (m)'])
+        ))
+
+        # Traçado para Cota Realizada
+        fig_cotas.add_trace(go.Scatter(
+            x=base["Data"],  
+            y=base["Cota Realizada (m)"],  
+            mode="lines+markers",  
+            name=f"{acude} - Cota Realizada (m)",  
+            hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>",
+            line=dict(color=colors['Cota Realizada (m)'])
+        ))
+
+    fig_cotas.update_layout(
+        template="plotly_white",  
+        margin=dict(l=10, r=10, t=10, b=10),  
+        legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),  
+        xaxis_title="Data",  
+        yaxis_title="Cota (m)",  
+        height=480
+    )
+    st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
+else:
+    st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
 
     st.subheader("📈 Volume (m³)")
     if 'Volume(m³)' in dff.columns:
@@ -237,4 +252,5 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
