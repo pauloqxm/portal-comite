@@ -138,45 +138,74 @@ def render_dados():
         center_lon = dff['Longitude'].mean()
         m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
     
-        # === CÓDIGO DA LÓGICA DE CORES ===
-        def _get_classificacao(props):
-            for k in ("Classificação", "classificacao", "CLASSIFICACAO"):
-                if k in props:
-                    return str(props[k])
-            return "Sem classificação"
-        
-        color_map = {
-            "Crítico":          "#d73027",  # vermelho
-            "Alerta":           "#fc8d59",  # laranja
-            "Atenção":          "#fee08b",  # amarelo
-            "Normal":           "#1a9850",  # verde
-            "Observação":       "#4575b4",  # azul
-            "Sem classificação": "#999999"
-        }
+        # === CÓDIGO ALTERNATIVO PARA LÓGICA DE CORES ===
+        def get_classification_color(feature):
+            classificacao = feature.get('properties', {}).get('Classificação') or \
+                           feature.get('properties', {}).get('classificacao') or \
+                           feature.get('properties', {}).get('CLASSIFICACAO', 'Sem classificação')
+            
+            color_map = {
+                "Crítico": "#d73027",
+                "Alerta": "#fc8d59",
+                "Atenção": "#fee08b",
+                "Normal": "#1a9850",
+                "Observação": "#4575b4",
+                "Sem classificação": "#999999"
+            }
+            return color_map.get(classificacao, "#999999")
+    
+        # Função de estilo aprimorada
+        def style_function(feature):
+            return {
+                'fillColor': get_classification_color(feature),
+                'color': get_classification_color(feature),
+                'weight': 2,
+                'fillOpacity': 0.5,
+                'opacity': 0.8
+            }
     
         # Adiciona a camada GeoJSON com a categorização de cores
         if geojson_situa:
-            folium.GeoJson(
-                geojson_situa,
-                name="Situação da Bacia",
-                style_function=lambda x: {
-                    "color": color_map.get(_get_classificacao(x["properties"]), color_map["Sem classificação"]),
-                    "weight": 2.5,
-                    "fillColor": color_map.get(_get_classificacao(x["properties"]), color_map["Sem classificação"]),
-                    "fillOpacity": 0.35,
-                },
-                tooltip=folium.GeoJsonTooltip(fields=["Classificação"]),
-            ).add_to(m)
+            # Verifica se há features no GeoJSON
+            if geojson_situa.get('features'):
+                # Cria um grupo para melhor organização
+                situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
+                
+                # Adiciona cada feature individualmente com seu estilo próprio
+                for feature in geojson_situa['features']:
+                    # Cria um popup com informações
+                    popup_content = f"Classificação: {feature['properties'].get('Classificação', 'N/A')}"
+                    
+                    folium.GeoJson(
+                        feature,
+                        style_function=style_function,
+                        tooltip=folium.GeoJsonTooltip(
+                            fields=['Classificação'],
+                            aliases=['Classificação:'],
+                            localize=True
+                        )
+                    ).add_to(situa_group)
+                
+                situa_group.add_to(m)
     
         if geojson_c_gestoras:
-            folium.GeoJson(geojson_c_gestoras, name="Células Gestoras").add_to(m)
+            folium.GeoJson(
+                geojson_c_gestoras, 
+                name="Células Gestoras",
+                style_function=lambda x: {'color': '#555555', 'fillColor': '#555555', 'fillOpacity': 0.1}
+            ).add_to(m)
+            
         if geojson_poligno:
-            folium.GeoJson(geojson_poligno, name="Polígonos").add_to(m)
+            folium.GeoJson(
+                geojson_poligno, 
+                name="Polígonos",
+                style_function=lambda x: {'color': '#888888', 'fillColor': '#888888', 'fillOpacity': 0.2}
+            ).add_to(m)
     
         # Adiciona os marcadores dos açudes com a cor correspondente
         for _, row in dff.iterrows():
-            # Obtém a cor com base na classificação da linha
-            color_marker = color_map.get(row.get('Classificação', 'Sem classificação'), color_map["Sem classificação"])
+            classificacao = row.get('Classificação', 'Sem classificação')
+            color_marker = get_classification_color({'properties': {'Classificação': classificacao}})
             
             popup_html = f"""
             <b>Açude:</b> {row.get('Açude', 'N/A')}<br>
@@ -184,7 +213,7 @@ def render_dados():
             <b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m<br>
             <b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m<br>
             <b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³<br>
-            <b>Classificação:</b> {row.get('Classificação', 'N/A')}
+            <b>Classificação:</b> {classificacao}
             """
             
             folium.CircleMarker(
@@ -197,6 +226,42 @@ def render_dados():
                 tooltip=row.get('Açude', 'N/A'),
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
+    
+        # Adiciona legenda de cores
+        legend_html = '''
+        <div style="position: fixed; 
+                    bottom: 50px; left: 50px; width: 150px; 
+                    border:2px solid grey; z-index:9999; 
+                    font-size:14px; background:white;
+                    padding: 10px;">
+            <p style="margin:0; padding:0; font-weight:bold;">Legenda:</p>
+            <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="width:20px; height:20px; background:#d73027; margin-right:5px;"></div>
+                <span>Crítico</span>
+            </div>
+            <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="width:20px; height:20px; background:#fc8d59; margin-right:5px;"></div>
+                <span>Alerta</span>
+            </div>
+            <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="width:20px; height:20px; background:#fee08b; margin-right:5px;"></div>
+                <span>Atenção</span>
+            </div>
+            <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="width:20px; height:20px; background:#1a9850; margin-right:5px;"></div>
+                <span>Normal</span>
+            </div>
+            <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="width:20px; height:20px; background:#4575b4; margin-right:5px;"></div>
+                <span>Observação</span>
+            </div>
+            <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="width:20px; height:20px; background:#999999; margin-right:5px;"></div>
+                <span>Sem classificação</span>
+            </div>
+        </div>
+        '''
+        m.get_root().html.add_child(folium.Element(legend_html))
     
         Fullscreen().add_to(m)
         MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
@@ -451,4 +516,5 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
