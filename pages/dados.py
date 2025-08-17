@@ -165,30 +165,59 @@ def render_dados():
     st.markdown("---")
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     
-    # Verificação das colunas antes de gerar os gráficos
     if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
         fig_cotas = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
-            fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Simulada (m)"], mode="lines+markers", name=f"{acude} - Cota Simulada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
-            fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Realizada (m)"], mode="lines+markers", name=f"{acude} - Cota Realizada (m)", hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
-        fig_cotas.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Cota (m)", height=480)
+            fig_cotas.add_trace(go.Scatter(
+                x=base["Data"], 
+                y=base["Cota Simulada (m)"], 
+                mode="lines+markers", 
+                name=f"{acude} - Cota Simulada (m)", 
+                hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
+            ))
+            fig_cotas.add_trace(go.Scatter(
+                x=base["Data"], 
+                y=base["Cota Realizada (m)"], 
+                mode="lines+markers", 
+                name=f"{acude} - Cota Realizada (m)", 
+                hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
+            ))
+        fig_cotas.update_layout(
+            template="plotly_white", 
+            margin=dict(l=10, r=10, t=10, b=10), 
+            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), 
+            xaxis_title="Data", 
+            yaxis_title="Cota (m)", 
+            height=480
+        )
         st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
     else:
         st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
-
 
     st.subheader("📈 Volume (m³)")
     if 'Volume(m³)' in dff.columns:
         fig_vol = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
-            fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume(m³)"], mode="lines+markers", name=f"{acude} - Volume (m³)", hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m³<extra></extra>"))
-        fig_vol.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), xaxis_title="Data", yaxis_title="Volume (m³)", height=420)
+            fig_vol.add_trace(go.Scatter(
+                x=base["Data"], 
+                y=base["Volume(m³)"], 
+                mode="lines+markers", 
+                name=f"{acude} - Volume (m³)", 
+                hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m³<extra></extra>"
+            ))
+        fig_vol.update_layout(
+            template="plotly_white", 
+            margin=dict(l=10, r=10, t=10, b=10), 
+            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), 
+            xaxis_title="Data", 
+            yaxis_title="Volume (m³)", 
+            height=420
+        )
         st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
     else:
         st.info("Gráfico de Volume não disponível. Coluna 'Volume(m³)' não encontrada.")
-
 
     # 5. Tabela de dados
     st.markdown("---")
@@ -215,4 +244,16 @@ def render_dados():
         colunas_existentes = [col for col in colunas_tabela if col in dff.columns]
         dff_tabela = dff[colunas_existentes]
         
-        st.dataframe(dff_tabela.sort_values(["Açude", "Data"], ascending=[True, False]), use_container_width=True)
+        st.dataframe(
+            dff_tabela.sort_values(["Açude", "Data"], ascending=[True, False]), 
+            use_container_width=True,
+            column_config={
+                "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                "Cota Simulada (m)": st.column_config.NumberColumn(format="%.3f"),
+                "Cota Realizada (m)": st.column_config.NumberColumn(format="%.3f"),
+                "Volume(m³)": st.column_config.NumberColumn(format="%.2f"),
+                "Volume (%)": st.column_config.NumberColumn(format="%.2f"),
+                "Liberação (m³/s)": st.column_config.NumberColumn(format="%.2f"),
+                "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
+            }
+        )
