@@ -138,11 +138,11 @@ def render_dados():
         center_lon = dff['Longitude'].mean()
         m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
     
-        # === CÓDIGO ALTERNATIVO PARA LÓGICA DE CORES ===
-        def get_classification_color(feature):
-            classificacao = feature.get('properties', {}).get('Classificação') or \
-                           feature.get('properties', {}).get('classificacao') or \
-                           feature.get('properties', {}).get('CLASSIFICACAO', 'Sem classificação')
+        # === SOLUÇÃO PARA MULTIPOLYGON ===
+        def get_classification_color(properties):
+            classificacao = properties.get('Classificação') or \
+                           properties.get('classificacao') or \
+                           properties.get('CLASSIFICACAO', 'Sem classificação')
             
             color_map = {
                 "Crítico": "#d73027",
@@ -154,40 +154,40 @@ def render_dados():
             }
             return color_map.get(classificacao, "#999999")
     
-        # Função de estilo aprimorada
-        def style_function(feature):
+        # Função de estilo para MultiPolygon
+        def style_multi_polygon(feature):
             return {
-                'fillColor': get_classification_color(feature),
-                'color': get_classification_color(feature),
-                'weight': 2,
-                'fillOpacity': 0.5,
-                'opacity': 0.8
+                'fillColor': get_classification_color(feature['properties']),
+                'color': '#555555',  # Cor da borda
+                'weight': 1,
+                'fillOpacity': 0.7,
+                'opacity': 0.9
             }
     
-        # Adiciona a camada GeoJSON com a categorização de cores
-        if geojson_situa:
-            # Verifica se há features no GeoJSON
-            if geojson_situa.get('features'):
-                # Cria um grupo para melhor organização
+        # Adiciona a camada GeoJSON MultiPolygon
+        if geojson_situa and geojson_situa.get('type') == 'FeatureCollection':
+            # Verifica se é um MultiPolygon
+            if any(feature['geometry']['type'] == 'MultiPolygon' for feature in geojson_situa['features']):
+                # Cria um grupo para as features
                 situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
                 
-                # Adiciona cada feature individualmente com seu estilo próprio
+                # Processa cada feature individualmente
                 for feature in geojson_situa['features']:
-                    # Cria um popup com informações
-                    popup_content = f"Classificação: {feature['properties'].get('Classificação', 'N/A')}"
-                    
-                    folium.GeoJson(
-                        feature,
-                        style_function=style_function,
-                        tooltip=folium.GeoJsonTooltip(
-                            fields=['Classificação'],
-                            aliases=['Classificação:'],
-                            localize=True
-                        )
-                    ).add_to(situa_group)
+                    if feature['geometry']['type'] == 'MultiPolygon':
+                        # Cria um GeoJson para cada MultiPolygon
+                        folium.GeoJson(
+                            feature,
+                            style_function=style_multi_polygon,
+                            tooltip=folium.GeoJsonTooltip(
+                                fields=['Classificação'],
+                                aliases=['Classificação:'],
+                                sticky=True
+                            )
+                        ).add_to(situa_group)
                 
                 situa_group.add_to(m)
     
+        # Adiciona outras camadas
         if geojson_c_gestoras:
             folium.GeoJson(
                 geojson_c_gestoras, 
@@ -202,10 +202,10 @@ def render_dados():
                 style_function=lambda x: {'color': '#888888', 'fillColor': '#888888', 'fillOpacity': 0.2}
             ).add_to(m)
     
-        # Adiciona os marcadores dos açudes com a cor correspondente
+        # Adiciona os marcadores dos açudes
         for _, row in dff.iterrows():
             classificacao = row.get('Classificação', 'Sem classificação')
-            color_marker = get_classification_color({'properties': {'Classificação': classificacao}})
+            color_marker = get_classification_color({'Classificação': classificacao})
             
             popup_html = f"""
             <b>Açude:</b> {row.get('Açude', 'N/A')}<br>
@@ -227,7 +227,7 @@ def render_dados():
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
     
-        # Adiciona legenda de cores
+        # Adiciona legenda
         legend_html = '''
         <div style="position: fixed; 
                     bottom: 50px; left: 50px; width: 150px; 
@@ -516,5 +516,6 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
