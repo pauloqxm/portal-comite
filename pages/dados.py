@@ -139,46 +139,31 @@ def render_dados():
         else:
             st.metric(label="Dias do Período", value="N/A")
 
-#=========================Cotas (Cota Simulada x Cota Realizada)
+    
     st.markdown("---")
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     
     if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
-        dff["Cota Simulada (m)"] = pd.to_numeric(
-            dff["Cota Simulada (m)"].astype(str).str.replace(',', '.'),
-            errors='coerce'
-        )
-        dff["Cota Realizada (m)"] = pd.to_numeric(
-            dff["Cota Realizada (m)"].astype(str).str.replace(',', '.'),
-            errors='coerce'
-        )
+        dff["Cota Simulada (m)"] = pd.to_numeric(dff["Cota Simulada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
+        dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
         
         fig_cotas = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
-    
-            # Cota Simulada
             fig_cotas.add_trace(go.Scatter(
                 x=base["Data"], 
                 y=base["Cota Simulada (m)"], 
                 mode="lines+markers", 
                 name=f"{acude} - Cota Simulada (m)", 
-                line=dict(color="royalblue", dash="dot"),  # linha pontilhada
-                marker=dict(symbol="circle", size=6),
                 hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
             ))
-    
-            # Cota Realizada (linha contínua ligando pontos)
             fig_cotas.add_trace(go.Scatter(
                 x=base["Data"], 
                 y=base["Cota Realizada (m)"], 
                 mode="lines+markers", 
                 name=f"{acude} - Cota Realizada (m)", 
-                line=dict(color="firebrick", dash="solid"),  # linha contínua
-                marker=dict(symbol="diamond", size=7),
                 hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
             ))
-    
         fig_cotas.update_layout(
             template="plotly_white", 
             margin=dict(l=10, r=10, t=10, b=10), 
@@ -191,6 +176,31 @@ def render_dados():
     else:
         st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
 
+    st.subheader("📈 Volume (m³)")
+    if 'Volume(m³)' in dff.columns:
+        dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
+        
+        fig_vol = go.Figure()
+        for acude in sorted(dff["Açude"].dropna().unique()):
+            base = dff[dff["Açude"] == acude].sort_values("Data")
+            fig_vol.add_trace(go.Scatter(
+                x=base["Data"], 
+                y=base["Volume(m³)"], 
+                mode="lines+markers", 
+                name=f"{acude} - Volume (m³)", 
+                hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m³<extra></extra>"
+            ))
+        fig_vol.update_layout(
+            template="plotly_white", 
+            margin=dict(l=10, r=10, t=10, b=10), 
+            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), 
+            xaxis_title="Data", 
+            yaxis_title="Volume (m³)", 
+            height=420
+        )
+        st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
+    else:
+        st.info("Gráfico de Volume não disponível. Coluna 'Volume(m³)' não encontrada.")
 
     st.markdown("---")
     st.subheader("📋 Tabela de Dados")
@@ -228,5 +238,3 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
-
-
