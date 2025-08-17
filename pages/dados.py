@@ -8,6 +8,11 @@ from folium.plugins import Fullscreen, MousePosition
 from utils.common import load_geojson_data
 
 def render_dados():
+    # Adicione este botão no topo da sua página
+    if st.button("🔄 Recarregar Página"):
+        st.experimental_rerun()
+
+def render_dados():
     st.title("📈 Simulações")
     st.markdown("""
 <div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
@@ -326,5 +331,6 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
