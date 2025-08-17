@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -138,69 +139,7 @@ def render_dados():
         else:
             st.metric(label="Dias do Período", value="N/A")
 
-    st.markdown("---")
-    st.subheader("🌍 Mapa dos Açudes")
     
-    with st.expander("Configurações do Mapa", expanded=False):
-        tile_option = st.selectbox(
-            "Estilo do Mapa:",
-            ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
-            index=0,
-            key='map_style_select'
-        )
-    
-    geojson_data = load_geojson_data()
-    geojson_bacia = geojson_data.get('geojson_bacia', {})
-    geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
-    geojson_poligno = geojson_data.get('geojson_poligno', {})
-
-    tile_config = {
-        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
-        "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
-        "CartoDB positron": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
-        "CartoDB dark_matter": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
-        "Esri Satellite": {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
-        "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
-    }
-    
-    if 'Coordenadas' in dff.columns:
-        center_lat = dff['Latitude'].mean()
-        center_lon = dff['Longitude'].mean()
-        m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
-
-        folium.LayerControl().add_to(m)
-
-        if geojson_bacia:
-            folium.GeoJson(geojson_bacia, name="Bacia Hidrográfica").add_to(m)
-        if geojson_c_gestoras:
-            folium.GeoJson(geojson_c_gestoras, name="Células Gestoras").add_to(m)
-        if geojson_poligno:
-            folium.GeoJson(geojson_poligno, name="Polígonos").add_to(m)
-
-        for _, row in dff.iterrows():
-            # Cria um pop-up com dados, tratando a ausência de colunas
-            popup_html = f"""
-            <b>Açude:</b> {row.get('Açude', 'N/A')}<br>
-            <b>Município:</b> {row.get('Município', 'N/A')}<br>
-            <b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m<br>
-            <b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m<br>
-            <b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³<br>
-            <b>Classificação:</b> {row.get('Classificação', 'N/A')}
-            """
-            
-            folium.Marker(
-                location=[row['Latitude'], row['Longitude']],
-                tooltip=row.get('Açude', 'N/A'),
-                popup=folium.Popup(popup_html, max_width=300)
-            ).add_to(m)
-
-        Fullscreen().add_to(m)
-        MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
-        
-        folium_static(m)
-    else:
-        st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
-
     st.markdown("---")
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     
@@ -299,3 +238,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
