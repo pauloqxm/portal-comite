@@ -162,13 +162,13 @@ def render_dados():
                 control=True, show=(name == tile_option)
             ).add_to(m)
     
-        # ------------- CATEGORIZAÇÃO POR "Classificação" NO GEOJSON_SITUA -------------
+# ------------- CATEGORIZAÇÃO POR "Classificação" NO GEOJSON_SITUA (com suporte a Point) -------------
         def _get_classificacao(props):
             for k in ("Classificação", "classificacao", "CLASSIFICACAO"):
                 if k in props:
                     return str(props[k])
             return "Sem classificação"
-    
+        
         color_map = {
             "Crítico":            "#d73027",  # vermelho
             "Alerta":             "#fc8d59",  # laranja
@@ -177,22 +177,30 @@ def render_dados():
             "Observação":         "#4575b4",  # azul
             "Sem classificação":  "#999999"
         }
-    
+        
         def style_function(feature):
+            # usado para POLÍGONOS/LINHAS
             cls = _get_classificacao(feature.get("properties", {}))
             color = color_map.get(cls, color_map["Sem classificação"])
             return {
                 "color": color,        # borda
                 "weight": 2.5,
                 "fillColor": color,    # preenchimento (polígonos)
-                "fillOpacity": 0.25
+                "fillOpacity": 0.35
             }
-    
+        
         def highlight_function(feature):
-            return {"color": "#000000", "weight": 3, "fillOpacity": 0.35}
-    
+            return {"color": "#000000", "weight": 3, "fillOpacity": 0.45}
+        
+        # >>> AQUI trocamos a criação da camada:
         if geojson_situa:
-            # Gera HTML do tooltip a partir das properties
+            # detecta se há pontos
+            has_points = any(
+                (f.get("geometry", {}) or {}).get("type", "").endswith("Point")
+                for f in geojson_situa.get("features", [])
+            )
+        
+            # tooltip: gera HTML por feature
             def _tooltip_html(props):
                 nome = props.get("nome") or props.get("Nome") or props.get("NOME") or props.get("Açude") or props.get("Acude")
                 cls  = _get_classificacao(props)
@@ -200,23 +208,53 @@ def render_dados():
                 if nome: parts.append(f"<b>Nome:</b> {nome}")
                 if cls:  parts.append(f"<b>Classificação:</b> {cls}")
                 return "<br>".join(parts) if parts else "Sem dados"
-    
-            # Injeta um campo temporário para tooltip
+        
             for f in geojson_situa.get("features", []):
-                f_props = f.get("properties", {})
-                f_props["_tooltip_html"] = _tooltip_html(f_props)
-    
-            layer_situa = folium.GeoJson(
-                geojson_situa,
-                name="Situação da Bacia",
-                show=False,
-                style_function=style_function,
-                highlight_function=highlight_function,
-                tooltip=folium.GeoJsonTooltip(
-                    fields=["_tooltip_html"], aliases=[""], labels=False, sticky=True
-                ),
-            )
+                props = f.get("properties", {})
+                props["_tooltip_html"] = _tooltip_html(props)
+        
+            if has_points:
+                # Para pontos: usar point_to_layer e pintar CircleMarker
+                def point_to_layer(feature, latlng):
+                    cls = _get_classificacao(feature.get("properties", {}))
+                    color = color_map.get(cls, color_map["Sem classificação"])
+                    return folium.CircleMarker(
+                        location=latlng,
+                        radius=6,
+                        color=color,
+                        weight=2,
+                        fill=True,
+                        fill_color=color,
+                        fill_opacity=0.9
+                    )
+        
+                layer_situa = folium.GeoJson(
+                    geojson_situa,
+                    name="Situação da Bacia",
+                    show=False,
+                    point_to_layer=point_to_layer,   # <<< chave para pontos
+                    # style_function não afeta pontos; deixamos só para caso haja mix com polígonos/linhas
+                    style_function=style_function,
+                    highlight_function=highlight_function,
+                    tooltip=folium.GeoJsonTooltip(
+                        fields=["_tooltip_html"], aliases=[""], labels=False, sticky=True
+                    ),
+                )
+            else:
+                # Polígonos/Linhas: style_function funciona normalmente
+                layer_situa = folium.GeoJson(
+                    geojson_situa,
+                    name="Situação da Bacia",
+                    show=False,
+                    style_function=style_function,
+                    highlight_function=highlight_function,
+                    tooltip=folium.GeoJsonTooltip(
+                        fields=["_tooltip_html"], aliases=[""], labels=False, sticky=True
+                    ),
+                )
+        
             layer_situa.add_to(m)
+
     
         # Demais overlays
         if geojson_c_gestoras:
@@ -526,5 +564,6 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
