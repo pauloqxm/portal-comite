@@ -149,7 +149,7 @@ def render_dados():
                 "Criticidade Alta": "#d73027",      # Vermelho
                 "Criticidade Média": "#fc8d59",     # Laranja
                 "Criticidade Baixa": "#fee08b",     # Amarelo
-                "Fora de Criticidade": "#1a9850",   # Verde
+                "Fora de Criticidade": "#036b03",   # Verde
                 "Sem classificação": "#999999"      # Cinza
             }
             return color_map.get(classificacao, "#999999")
@@ -542,6 +542,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
