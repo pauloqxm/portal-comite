@@ -108,6 +108,71 @@ def render_dados():
         
     dff = dff.sort_values(["Açude", "Data"])
 
+    # --- NOVO BLOCO DO MAPA FOLIUM (agora o primeiro item após os filtros) ---
+    st.markdown("---")
+    st.subheader("🌍 Mapa dos Açudes")
+    
+    with st.expander("Configurações do Mapa", expanded=False):
+        tile_option = st.selectbox(
+            "Estilo do Mapa:",
+            ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
+            index=0,
+            key='map_style_select'
+        )
+    
+    geojson_data = load_geojson_data()
+    geojson_situa = geojson_data.get('geojson_situa', {})
+    geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
+    geojson_poligno = geojson_data.get('geojson_poligno', {})
+
+    tile_config = {
+        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
+        "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+        "CartoDB positron": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
+        "CartoDB dark_matter": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
+        "Esri Satellite": {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
+        "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+    }
+    
+    if 'Coordenadas' in dff.columns:
+        center_lat = dff['Latitude'].mean()
+        center_lon = dff['Longitude'].mean()
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
+
+        folium.LayerControl().add_to(m)
+
+        if geojson_situa:
+            folium.GeoJson(geojson_situa, name="Situação da Bacia").add_to(m)
+        if geojson_c_gestoras:
+            folium.GeoJson(geojson_c_gestoras, name="Células Gestoras").add_to(m)
+        if geojson_poligno:
+            folium.GeoJson(geojson_poligno, name="Polígonos").add_to(m)
+
+        for _, row in dff.iterrows():
+            popup_html = f"""
+            <b>Açude:</b> {row.get('Açude', 'N/A')}<br>
+            <b>Município:</b> {row.get('Município', 'N/A')}<br>
+            <b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m<br>
+            <b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m<br>
+            <b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³<br>
+            <b>Classificação:</b> {row.get('Classificação', 'N/A')}
+            """
+            
+            folium.Marker(
+                location=[row['Latitude'], row['Longitude']],
+                tooltip=row.get('Açude', 'N/A'),
+                popup=folium.Popup(popup_html, max_width=300)
+            ).add_to(m)
+
+        Fullscreen().add_to(m)
+        MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
+        
+        folium_static(m)
+    else:
+        st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
+    # --- FIM DO BLOCO DO MAPA ---
+
+    # --- INDICADORES DE DESEMPENHO (KPIs) ---
     st.markdown("---")
     st.subheader("📊 Indicadores de Desempenho (KPIs)")
     
@@ -144,30 +209,24 @@ def render_dados():
     """, unsafe_allow_html=True)
     
     kpi_cols = st.columns(4)
-
-#==========================KPI 1: Total de Liberação (m³/h)
     
     if 'Liberação (m³/s)' in dff.columns:
         with kpi_cols[0]:
             try:
-                # Converte a coluna para tipo numérico
                 dff["Liberação (m³/s)"] = pd.to_numeric(
                     dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'),
                     errors='coerce'
                 )
                 
-                # Pega a data mais recente disponível
                 ultima_data = dff['Data'].max()
                 
-                # Filtra os dados apenas para a última data
                 df_ultima_data = dff[dff['Data'] == ultima_data]
                 
-                # Soma os valores para essa data e converte para m³/h
                 total_liberacao_m3h = df_ultima_data["Liberação (m³/s)"].sum() * 3600
                 
                 st.markdown(f"""
                 <div class="kpi-card">
-                    <div class="kpi-label">Vazão Simulada (m³/h)</div>
+                    <div class="kpi-label">Liberação Total Diária (m³/h)</div>
                     <div class="kpi-value">{total_liberacao_m3h:,.2f}</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -229,6 +288,7 @@ def render_dados():
             </div>
             """, unsafe_allow_html=True)
     
+    # --- GRÁFICO DE COTAS ---
     st.markdown("---")
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     
@@ -264,25 +324,21 @@ def render_dados():
         st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
     else:
         st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
-
-#===================Volume
+    
+    # --- GRÁFICO DE VOLUME ---
     st.subheader("📈 Volume (hm³)")
     if 'Volume(m³)' in dff.columns and 'Volume (%)' in dff.columns and 'Volume Observado (m³)' in dff.columns:
-        # Garante que as colunas são numéricas
         dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Volume (%)"] = pd.to_numeric(dff["Volume (%)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Volume Observado (m³)"] = pd.to_numeric(dff["Volume Observado (m³)"].astype(str).str.replace(',', '.'), errors='coerce')
-    
-        # === CORREÇÃO: Converte Volume de m³ para hm³ ===
+        
         dff['Volume (hm³)'] = dff['Volume(m³)'] / 1_000_000
         dff['Volume Observado (hm³)'] = dff['Volume Observado (m³)'] / 1_000_000
-        # ================================================
         
         fig_vol = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
             
-            # Traçado para o Volume Simulad
             fig_vol.add_trace(go.Scatter(
                 x=base["Data"], 
                 y=base["Volume (hm³)"], 
@@ -297,7 +353,6 @@ def render_dados():
                 customdata=base["Volume (%)"]
             ))
             
-            # Traçado para o Volume Observado (NOVA LINHA)
             fig_vol.add_trace(go.Scatter(
                 x=base["Data"], 
                 y=base["Volume Observado (hm³)"], 
@@ -309,7 +364,7 @@ def render_dados():
                     <extra></extra>
                 """
             ))
-    
+        
         fig_vol.update_layout(
             template="plotly_white", 
             margin=dict(l=10, r=10, t=10, b=10), 
@@ -322,6 +377,7 @@ def render_dados():
     else:
         st.info("Gráfico de Volume não disponível. Verifique se as colunas 'Volume(m³)', 'Volume (%)' e 'Volume Observado (m³)' existem na planilha.")
 
+    # --- TABELA DE DADOS ---
     st.markdown("---")
     st.subheader("📋 Tabela de Dados")
     with st.expander("Ver dados filtrados"):
@@ -333,6 +389,7 @@ def render_dados():
             'Cota Simulada (m)',
             'Cota Realizada (m)',
             'Volume(m³)',
+            'Volume Observado (m³)',
             'Volume (%)',
             'Evapor. Parcial(mm)',
             'Cota Interm. (m)',
@@ -353,11 +410,9 @@ def render_dados():
                 "Cota Simulada (m)": st.column_config.NumberColumn(format="%.3f"),
                 "Cota Realizada (m)": st.column_config.NumberColumn(format="%.3f"),
                 "Volume(m³)": st.column_config.NumberColumn(format="%.2f"),
+                "Volume Observado (m³)": st.column_config.NumberColumn(format="%.2f"),
                 "Volume (%)": st.column_config.NumberColumn(format="%.2f"),
                 "Liberação (m³/s)": st.column_config.NumberColumn(format="%.2f"),
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
-
-
-
