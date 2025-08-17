@@ -14,7 +14,7 @@ render_header()
 # CRIAÇÃO DAS ABAS
 # =========================
 # Adicionando uma nova aba para "Fale Conosco"
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Página Inicial", "💧 Painel de Vazões", "🗺️ Açudes Monitorados", "📜 Documentos Oficiais", "📈 Simulações", "✉️ Fale Conosco"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Página Inicial", "💧 Painel de Vazões", "🗺️ Açudes Monitorados", "📈 Simulações", "📜 Documentos Oficiais", "✉️ Fale Conosco"])
 
 with tab1:
     home.render_home()
@@ -26,13 +26,14 @@ with tab3:
     acudes.render_acudes()
 
 with tab4:
-    docs.render_docs()
+    dados.render_dados()
 
 with tab5:
-    dados.render_dados()
+    docs.render_docs()
     
 with tab6:
     fale_conosco.render_fale_conosco() # Chamando a nova função
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
