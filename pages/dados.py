@@ -17,7 +17,6 @@ def render_dados():
 </div>
 """, unsafe_allow_html=True)
 
-    # --- CARREGA A PLANILHA DIRETAMENTE DO GOOGLE SHEETS ---
     google_sheet_url = "https://docs.google.com/spreadsheets/d/1C40uaNmLUeu-k_FGEPZOgF8FwpSU00C9PtQu8Co4AUI/gviz/tq?tqx=out:csv&sheet=simulacoes_data"
     
     try:
@@ -26,6 +25,14 @@ def render_dados():
 
         # Trata a coluna de datas
         df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
+
+        # Renomeia a coluna de coordenadas para um nome padrão e consistente.
+        # Substitua 'Coordendas' pelo nome exato que está na sua planilha, se for diferente.
+        if 'Coordendas' in df.columns:
+            df = df.rename(columns={'Coordendas': 'Coordenadas'})
+        else:
+            st.warning("A coluna 'Coordenadas' não foi encontrada. O mapa não será exibido.")
+            return
 
     except Exception as e:
         st.error(f"Erro ao carregar os dados da planilha. Verifique se o link está correto e se a planilha está pública. Detalhes do erro: {e}")
@@ -99,8 +106,12 @@ def render_dados():
         st.info("Não há dados para os filtros selecionados.")
         return
 
-    # Certifique-se de que a coluna de Coordenadas está no formato correto
-    dff[['Latitude', 'Longitude']] = dff['Coordenadas'].str.split(',', expand=True).astype(float)
+    # Certifique-se de que a coluna de Coordenadas existe antes de tentar processá-la
+    if 'Coordenadas' in dff.columns:
+        dff[['Latitude', 'Longitude']] = dff['Coordenadas'].str.split(',', expand=True).astype(float)
+    else:
+        st.warning("A coluna 'Coordenadas' não está disponível. O mapa e os gráficos de cota/volume não serão exibidos corretamente.")
+        return
     
     dff = dff.sort_values(["Açude", "Data"])
 
