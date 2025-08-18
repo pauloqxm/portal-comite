@@ -38,7 +38,7 @@ def render_dados():
         st.info("A planilha de simulações está vazia. Por favor, verifique os dados.")
         return
 
-    # ---------- Integração das opções de Classificação com o GeoJSON ----------
+# ---------- Integração das opções de Classificação com o GeoJSON ----------
     geojson_data = load_geojson_data()
     geojson_situa = geojson_data.get('geojson_situa', {})
 
@@ -52,6 +52,13 @@ def render_dados():
                         classes.add(str(props[k]).strip())
                         break
         return classes
+
+    def _get_classificacao_from_props(props: dict):
+        """Obtém a classificação de um feature do GeoJSON a partir de suas propriedades"""
+        for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
+            if k in props and pd.notna(props[k]):
+                return str(props[k]).strip()
+        return None
 
     geo_classes = _get_geo_classes(geojson_situa)
     opcoes_classificacao_df = set(df["Classificação"].dropna().astype(str).str.strip().tolist())
@@ -604,4 +611,5 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
