@@ -108,62 +108,44 @@ def render_docs():
     # Renderiza como HTML (sem virar bloco de código)
     st.markdown(table_html, unsafe_allow_html=True)
 
-# --- Gráfico comparativo por Operação (Vazão média x Nº de Reservatórios) ---
+# --- Gráfico comparativo Operação x Vazão média (sem agrupar) ---
     st.markdown("---")
-    st.subheader("Comparativo por Operação: Vazão média e Nº de Reservatórios")
+    st.subheader("Comparativo: Operação x Vazão média")
 
-    cols_ok = {"Operação", "Vazão média", "Reservatório/Sistema"}.issubset(df_filtrado.columns)
-    if cols_ok and not df_filtrado.empty:
-        # extrai parte numérica da 'Vazão média' (aceita vírgula e sufixos como 'l/s')
+    if "Operação" in df_filtrado.columns and "Vazão média" in df_filtrado.columns and not df_filtrado.empty:
+        # limpar valores da coluna Vazão média (tirar textos como 'l/s')
         vazao_num = (
             df_filtrado["Vazão média"]
             .astype(str)
             .str.replace(",", ".", regex=False)            # vírgula -> ponto
-            .str.extract(r"([-+]?\d*\.?\d+)")[0]           # pega só o número
+            .str.extract(r"([-+]?\d*\.?\d+)")[0]           # captura apenas o número
         )
         df_plot = df_filtrado.copy()
         df_plot["Vazão média (num)"] = pd.to_numeric(vazao_num, errors="coerce")
 
-        grp = (
-            df_plot.groupby("Operação", dropna=False).agg(
-                vazao_media=("Vazão média (num)", "mean"),
-                n_reservatorios=("Reservatório/Sistema", lambda s: s.astype(str).nunique())
-            )
-            .reset_index()
-            .sort_values("vazao_media", ascending=False)
-        )
+        # remover linhas sem valor numérico
+        df_plot = df_plot.dropna(subset=["Vazão média (num)"])
 
-        if not grp.empty:
+        if not df_plot.empty:
             fig = go.Figure()
-            # Barra: Vazão média (l/s)
             fig.add_trace(go.Bar(
-                x=grp["Operação"],
-                y=grp["vazao_media"],
-                name="Vazão média (l/s)"
+                x=df_plot["Operação"],
+                y=df_plot["Vazão média (num)"],
+                text=df_plot["Vazão média (num)"].round(1),
+                textposition="outside",
+                marker_color="#228B22",
+                name="Vazão média"
             ))
-            # Linha: Nº de reservatórios (eixo secundário)
-            fig.add_trace(go.Scatter(
-                x=grp["Operação"],
-                y=grp["n_reservatorios"],
-                name="Nº de reservatórios",
-                mode="lines+markers",
-                yaxis="y2"
-            ))
-
             fig.update_layout(
                 template="plotly_white",
-                margin=dict(l=10, r=10, t=10, b=10),
                 height=420,
-                legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
+                margin=dict(l=10, r=10, t=30, b=10),
                 xaxis_title="Operação",
-                yaxis=dict(title="Vazão média (l/s)"),
-                yaxis2=dict(title="Nº de reservatórios", overlaying="y", side="right", showgrid=False),
+                yaxis_title="Vazão média (l/s)",
+                showlegend=False
             )
             st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
         else:
-            st.info("Sem dados suficientes para montar o gráfico.")
+            st.info("Não há valores válidos de Vazão média para montar o gráfico.")
     else:
-        st.info("Não foi possível montar o gráfico. Verifique se as colunas 'Operação', 'Vazão média' e 'Reservatório/Sistema' existem.")
-
-
-
+        st.info("Colunas 'Operação' e 'Vazão média' não encontradas na base de dados.")
