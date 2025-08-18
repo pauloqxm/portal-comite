@@ -159,36 +159,56 @@ def render_docs():
     # Renderiza como HTML (sem virar bloco de código)
     st.markdown(table_html, unsafe_allow_html=True)
 
-# --- Gráfico comparativo Operação x Vazão média (com Altair) ---
-    if not df_plot.empty:
-        fig = px.bar(
-            df_plot.sort_values("Vazão média (l/s)", ascending=False),
-            x="Operação",
-            y="Vazão média (l/s)",
-            color="Vazão média (l/s)",
-            color_continuous_scale="Greens",
-            text="Vazão média (l/s)",
-            height=500
-        )
-        
-        fig.update_traces(
-            texttemplate='%{text:.1f}',
-            textposition='outside',
-            hovertemplate="<b>%{x}</b><br>Vazão: %{y:.1f} l/s"
-        )
-        
-        fig.update_layout(
-            xaxis_title="Operação",
-            yaxis_title="Vazão média (l/s)",
-            coloraxis_showscale=False,
-            margin=dict(l=20, r=20, t=40, b=20)
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+# --- Gráfico comparativo Operação x Vazão média ---
+    st.markdown("---")
+    st.subheader("📊 Comparativo: Operação x Vazão média")
 
-
-
-
-
-
-
+    # Verifica se as colunas necessárias existem
+    if all(col in df_filtrado.columns for col in ["Operação", "Vazão média"]) and not df_filtrado.empty:
+        try:
+            # Pré-processamento dos dados
+            df_plot = df_filtrado.copy()
+            
+            # Converte a vazão para numérico
+            df_plot["Vazão média (l/s)"] = (
+                df_plot["Vazão média"]
+                .astype(str)
+                .str.replace(",", ".")
+                .str.extract(r"(\d+\.?\d*)")[0]
+                .astype(float)
+            )
+            
+            # Remove valores nulos
+            df_plot = df_plot.dropna(subset=["Vazão média (l/s)"])
+            
+            if not df_plot.empty:
+                # Cria o gráfico com Plotly Express
+                fig = px.bar(
+                    df_plot.sort_values("Vazão média (l/s)", ascending=False),
+                    x="Operação",
+                    y="Vazão média (l/s)",
+                    color="Vazão média (l/s)",
+                    color_continuous_scale="Greens",
+                    text="Vazão média (l/s)",
+                    height=500
+                )
+                
+                fig.update_traces(
+                    texttemplate='%{text:.1f}',
+                    textposition='outside'
+                )
+                
+                fig.update_layout(
+                    xaxis_title="Operação",
+                    yaxis_title="Vazão média (l/s)",
+                    coloraxis_showscale=False
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Não há dados válidos para exibir o gráfico.")
+                
+        except Exception as e:
+            st.error(f"Erro ao processar os dados: {str(e)}")
+    else:
+        st.info("Dados insuficientes. Verifique se as colunas 'Operação' e 'Vazão média' existem.")
