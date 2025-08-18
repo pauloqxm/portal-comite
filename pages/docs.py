@@ -55,7 +55,7 @@ def render_docs():
             filtro_operacao = st.multiselect("Operação", ops_opts, default=ops_opts)
 
         with col2:
-            filtro_data = st.multiselect("Data da Reunião", datas_opts, default=datas_opts)
+            filtro_data = st.selectbox("Data da Reunião", ["Todos"] + (sorted(df["Data da Reunião"].dropna().astype(str).unique()) if "Data da Reunião" in df.columns else []), index=None, placeholder="Selecione...")
 
         with col3:
             filtro_reservatorio = st.multiselect("Reservatório/Sistema", reserv_opts, default=reserv_opts)
@@ -188,6 +188,7 @@ def render_docs():
             st.info("Não há valores válidos de Vazão média para montar o gráfico.")
     else:
         st.info("Colunas 'Operação' e 'Vazão média' não encontradas na base de dados.")
+
 
 
 
