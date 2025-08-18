@@ -8,8 +8,6 @@ from streamlit_folium import folium_static
 from folium.plugins import Fullscreen, MousePosition
 from utils.common import load_reservatorios_data, load_geojson_data
 
-st.set_page_config(layout="wide")
-
 def render_acudes():
     st.title("🗺️ Açudes Monitorados")
     st.markdown(
@@ -82,50 +80,18 @@ def render_acudes():
 
     df_mapa = df_filtrado.sort_values("Data de Coleta", ascending=False).drop_duplicates(subset=["Reservatório"]).copy()
 
-# ===================== Mapa Interativo =====================
+    # ===================== Mapa Interativo =====================
     st.subheader("🌍 Mapa dos Açudes")
     with st.expander("Configurações do Mapa", expanded=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            tile_option = st.selectbox(
-                "Estilo do Mapa:",
-                ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
-                index=0
-            )
-        with col2:
-            st.write("")  # Espaço para alinhamento
-
+        tile_option = st.selectbox(
+            "Estilo do Mapa:",
+            ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
+            index=0
+        )
     geojson_data = load_geojson_data()
     geojson_bacia = geojson_data.get('geojson_bacia', {})
     geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
     geojson_poligno = geojson_data.get('geojson_poligno', {})
-
-# Centralizar o mapa na bacia
-    if geojson_bacia and geojson_bacia.get('features'):
-        try:
-            # Extrair todas as coordenadas da bacia (considerando diferentes estruturas GeoJSON)
-            coords = []
-            for feature in geojson_bacia['features']:
-                geometry = feature.get('geometry', {})
-                if geometry.get('type') == 'Polygon':
-                    coords.extend(geometry['coordinates'][0])
-                elif geometry.get('type') == 'MultiPolygon':
-                    for polygon in geometry['coordinates']:
-                        coords.extend(polygon[0])
-            
-            if coords:
-                lats = [coord[1] for coord in coords]
-                lons = [coord[0] for coord in coords]
-                center_lat = sum(lats) / len(lats)
-                center_lon = sum(lons) / len(lons)
-                mapa_center = [center_lat, center_lon]
-            else:
-                mapa_center = [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()] if not df_mapa.empty else [-5.2, -39.3]
-        except Exception as e:
-            st.warning(f"Não foi possível calcular o centro da bacia: {str(e)}")
-            mapa_center = [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()] if not df_mapa.empty else [-5.2, -39.3]
-    else:
-        mapa_center = [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()] if not df_mapa.empty else [-5.2, -39.3]
 
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
@@ -155,16 +121,11 @@ def render_acudes():
         return f"data:image/svg+xml;base64,{svg_b64}"
 
     if not df_filtrado.empty:
-        m = folium.Map(location=mapa_center, zoom_start=9, tiles=None, width='100%')
+        mapa_center = [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()]
+        m = folium.Map(location=mapa_center, zoom_start=9, tiles=None)
         folium.TileLayer(tiles=tile_config[tile_option]["tiles"], attr=tile_config[tile_option]["attr"], name=tile_option).add_to(m)
-        
         if geojson_bacia:
-            folium.GeoJson(
-                geojson_bacia, 
-                name="Bacia do Banabuiú", 
-                style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.1}, 
-                tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])
-            ).add_to(m)
+            folium.GeoJson(geojson_bacia, name="Bacia do Banabuiú", style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.1}, tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])).add_to(m)
         
         gestoras_layer = folium.FeatureGroup(name="Comissões Gestoras", show=False)
         if geojson_c_gestoras:
@@ -212,22 +173,14 @@ def render_acudes():
                 icon=folium.CustomIcon(create_svg_icon(icon_color), icon_size=(15, 15), icon_anchor=(7, 7)),
                 tooltip=f"{row['Reservatório']} - {data_formatada}",
             ).add_to(m)
-        
         folium.LayerControl().add_to(m)
         Fullscreen(position="topleft").add_to(m)
         MousePosition(position="bottomleft").add_to(m)
-        
         folium_static(m, width=1200)
     else:
         st.warning("Não há reservatórios com os filtros aplicados.")
-        st.write("")
-        st.write("")
-        st.write("")
-        st.markdown("---")  # Opcional: linha divisória
 
-# ===================== Tabela Interativa =====================
-    st.write("")
-    st.write("")
+    # ===================== Tabela Interativa =====================
     st.subheader("📊 Dados Detalhados Interativos")
     if not df_filtrado.empty:
         faixas_percentual = [(0, 10, "#808080", "Muito Crítica"), (10.1, 30, "#FF0000", "Crítica"), (30.1, 50, "#FFFF00", "Alerta"), (50.1, 70, "#008000", "Confortável"), (70.1, 100, "#0000FF", "Muito Confortável"), (100.1, float("inf"), "#800080", "Vertendo")]
@@ -281,10 +234,3 @@ def render_acudes():
             st.download_button(label="Baixar dados completos (CSV)", data=df_filtrado.drop(columns=["Cor", "Status", "TextColor"]).to_csv(index=False, encoding="utf-8-sig", sep=";"), file_name=f"reservatorios_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
     else:
         st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.", icon="⚠️")
-
-
-
-
-
-
-
