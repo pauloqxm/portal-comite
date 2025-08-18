@@ -8,6 +8,8 @@ from streamlit_folium import folium_static
 from folium.plugins import Fullscreen, MousePosition
 from utils.common import load_reservatorios_data, load_geojson_data
 
+st.set_page_config(layout="wide")
+
 def render_acudes():
     st.title("🗺️ Açudes Monitorados")
     st.markdown(
@@ -277,6 +279,7 @@ def render_acudes():
             st.download_button(label="Baixar dados completos (CSV)", data=df_filtrado.drop(columns=["Cor", "Status", "TextColor"]).to_csv(index=False, encoding="utf-8-sig", sep=";"), file_name=f"reservatorios_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
     else:
         st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.", icon="⚠️")
+
 
 
 
