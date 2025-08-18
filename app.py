@@ -6,10 +6,10 @@ from utils.common import render_header, render_footer
 
 # ---------------- CONFIG GERAL ----------------
 st.set_page_config(
-    page_title="📊 Comitê Transparente",
-    page_icon="💧",
+    page_title="Comitê Transparente",
+    page_icon="📊",
     layout="wide"
-
+)
 # ----------------- BARRA FIXA (HEADER) ------------
 render_header()
 
@@ -39,4 +39,5 @@ with tab6:
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
