@@ -111,7 +111,7 @@ def render_docs():
         "</tr></thead><tbody>"
     )
 
-    # ---------- Linhas ----------
+# ---------- Linhas ----------
     if not df_filtrado.empty:
         for _, row in df_filtrado.iterrows():
             op   = escape("" if pd.isna(row.get("Operação")) else str(row.get("Operação")))
@@ -119,7 +119,17 @@ def render_docs():
             data = escape("" if pd.isna(row.get("Data da Reunião")) else str(row.get("Data da Reunião")))
             loc  = escape("" if pd.isna(row.get("Local da Reunião")) else str(row.get("Local da Reunião")))
             par  = escape("" if pd.isna(row.get("Parâmetros aprovados")) else str(row.get("Parâmetros aprovados")))
-            vaz = "" if pd.isna(row.get("Vazão média")) else escape(str(row.get("Vazão média")))
+
+            # 👉 Formatação da coluna Vazão média
+            if pd.isna(row.get("Vazão média")) or str(row.get("Vazão média")).strip() in ("", "nan", "None", "null"):
+                vaz = ""
+            else:
+                try:
+                    vaz_num = float(row.get("Vazão média"))
+                    vaz = f"{int(vaz_num):,}".replace(",", ".") + " l/s"
+                except:
+                    vaz = escape(str(row.get("Vazão média")))
+
             apr  = row.get("Apresentação", "")
             ata  = row.get("Ata da Reunião", "")
 
@@ -139,6 +149,7 @@ def render_docs():
             )
     else:
         parts.append('<tr><td colspan="8" class="no-data">Nenhum registro encontrado</td></tr>')
+
 
     # ---------- Fechamento ----------
     parts.append("</tbody></table></div>")
@@ -188,6 +199,7 @@ def render_docs():
             st.info("Não há valores válidos de Vazão média para montar o gráfico.")
     else:
         st.info("Colunas 'Operação' e 'Vazão média' não encontradas na base de dados.")
+
 
 
 
