@@ -78,10 +78,10 @@ def render_dados():
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 opcoes_acudes = sorted(df["Açude"].dropna().unique().tolist())
-                acudes_sel = st.multiselect("Açude", options=opcoes_acudes, default=opcoes_acudes)
+                acudes_sel = st.multiselect("Açude", options=opcoes_acudes, default=[])
             with col2:
                 opcoes_municipios = sorted(df["Município"].dropna().unique().tolist())
-                municipios_sel = st.multiselect("Município", options=opcoes_municipios, default=opcoes_municipios)
+                municipios_sel = st.multiselect("Município", options=opcoes_municipios, default=[])
             with col3:
                 classificacao_sel = st.multiselect("Classificação", options=opcoes_classificacao, default=opcoes_classificacao)
             with col4:
@@ -656,5 +656,6 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
