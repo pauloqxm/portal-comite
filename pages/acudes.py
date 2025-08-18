@@ -217,8 +217,6 @@ def render_acudes():
         Fullscreen(position="topleft").add_to(m)
         MousePosition(position="bottomleft").add_to(m)
         
-        # Configuração para layout wide
-        st.write("")
         folium_static(m, width=1200)
     else:
         st.warning("Não há reservatórios com os filtros aplicados.")
@@ -283,6 +281,7 @@ def render_acudes():
             st.download_button(label="Baixar dados completos (CSV)", data=df_filtrado.drop(columns=["Cor", "Status", "TextColor"]).to_csv(index=False, encoding="utf-8-sig", sep=";"), file_name=f"reservatorios_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
     else:
         st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.", icon="⚠️")
+
 
 
 
