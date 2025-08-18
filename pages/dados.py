@@ -141,20 +141,55 @@ def render_dados():
         center_lon = dff['Longitude'].mean()
         m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=tile_config[tile_option]['tiles'], attr=tile_config[tile_option]['attr'])
     
-        # Paleta de cores para as classificações
+        # --- FUNÇÕES ATUALIZADAS ---
         def get_classification_color(props):
-            classificacao = props.get('Classificação') or props.get('classificacao') or props.get('CLASSIFICACAO', 'Sem classificação')
+            # Verifica todas as variações possíveis do nome da propriedade
+            classificacao_keys = ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']
+            classificacao = None
             
+            for key in classificacao_keys:
+                if key in props:
+                    classificacao = str(props[key]).strip()  # Remove espaços em branco
+                    break
+            
+            if classificacao is None:
+                return "#999999"  # Cinza para sem classificação
+            
+            # Mapa de cores com todas as variações possíveis
             color_map = {
-                "Criticidade Alta": "#d73027",      # Vermelho
-                "Criticidade Média": "#fc8d59",     # Laranja
-                "Criticidade Baixa": "#fee08b",     # Amarelo
-                "Fora de Criticidade": "#036b03",   # Verde
-                "Sem classificação": "#999999"      # Cinza
+                # Criticidade Alta
+                "Criticidade Alta": "#d73027",
+                "criticidade alta": "#d73027",
+                "Alta": "#d73027",
+                
+                # Criticidade Média
+                "Criticidade Média": "#fc8d59",
+                "criticidade média": "#fc8d59",
+                "Média": "#fc8d59",
+                
+                # Criticidade Baixa
+                "Criticidade Baixa": "#fee08b",
+                "criticidade baixa": "#fee08b",
+                "Baixa": "#fee08b",
+                
+                # Fora de Criticidade
+                "Fora de Criticidade": "#1a9850",
+                "fora de criticidade": "#1a9850",
+                "Fora criticidade": "#1a9850",
+                "fora criticidade": "#1a9850",
+                "Normal": "#1a9850",
+                
+                # Sem classificação
+                "Sem classificação": "#999999"
             }
-            return color_map.get(classificacao, "#999999")
+            
+            # Busca case-insensitive
+            for key in color_map:
+                if key.lower() == classificacao.lower():
+                    return color_map[key]
+            
+            return "#999999"  # Padrão para classificações não mapeadas
     
-        # Estilo para os polígonos
         def style_function(feature):
             return {
                 'fillColor': get_classification_color(feature.get('properties', {})),
@@ -164,48 +199,42 @@ def render_dados():
                 'opacity': 0.9
             }
     
-        # Adiciona a camada principal (situa_municipio)
+        # --- CAMADA PRINCIPAL (situa_municipio) ---
         if geojson_situa and geojson_situa.get('type') == 'FeatureCollection':
             try:
-                # Verifica se há features MultiPolygon
-                has_multipolygon = any(
-                    feature.get('geometry', {}).get('type') == 'MultiPolygon'
-                    for feature in geojson_situa.get('features', [])
-                )
+                situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
                 
-                if has_multipolygon:
-                    # Processamento especial para MultiPolygon
-                    situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
-                    
-                    for feature in geojson_situa['features']:
-                        if feature.get('geometry', {}).get('type') == 'MultiPolygon':
-                            folium.GeoJson(
-                                feature,
-                                style_function=style_function,
-                                tooltip=folium.GeoJsonTooltip(
-                                    fields=['Classificação'],
-                                    aliases=['Classificação:'],
-                                    sticky=True
-                                )
-                            ).add_to(situa_group)
-                    
-                    situa_group.add_to(m)
-                else:
-                    # Processamento padrão para outros tipos de geometria
-                    folium.GeoJson(
-                        geojson_situa,
-                        name="Situação da Bacia",
-                        style_function=style_function,
-                        tooltip=folium.GeoJsonTooltip(
-                            fields=['Classificação'],
-                            aliases=['Classificação:'],
-                            sticky=True
-                        )
-                    ).add_to(m)
+                # Verificação das classificações presentes (para debug)
+                classificacoes_presentes = set()
+                for feature in geojson_situa.get('features', []):
+                    props = feature.get('properties', {})
+                    for key in ['Classificação', 'classificacao', 'CLASSIFICACAO']:
+                        if key in props:
+                            classificacoes_presentes.add(props[key])
+                
+                if classificacoes_presentes:
+                    st.session_state.classificacoes_presentes = classificacoes_presentes
+                
+                # Adiciona o GeoJSON com tratamento especial para MultiPolygon
+                folium.GeoJson(
+                    geojson_situa,
+                    style_function=style_function,
+                    tooltip=folium.GeoJsonTooltip(
+                        fields=['Classificação'],
+                        aliases=['Classificação:'],
+                        sticky=True,
+                        style=("font-weight: bold;")
+                    )
+                ).add_to(situa_group)
+                
+                situa_group.add_to(m)
+                
             except Exception as e:
                 st.error(f"Erro ao processar GeoJSON: {str(e)}")
+                if 'classificacoes_presentes' in st.session_state:
+                    st.write("Classificações encontradas:", st.session_state.classificacoes_presentes)
     
-        # Adiciona camadas adicionais
+        # --- CAMADAS ADICIONAIS ---
         if geojson_c_gestoras:
             folium.GeoJson(
                 geojson_c_gestoras, 
@@ -230,18 +259,20 @@ def render_dados():
                 }
             ).add_to(m)
     
-        # Adiciona marcadores para os açudes
+        # --- MARCADORES DOS AÇUDES ---
         for _, row in dff.iterrows():
             classificacao = row.get('Classificação', 'Sem classificação')
             color_marker = get_classification_color({'Classificação': classificacao})
             
             popup_html = f"""
-            <b>Açude:</b> {row.get('Açude', 'N/A')}<br>
-            <b>Município:</b> {row.get('Município', 'N/A')}<br>
-            <b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m<br>
-            <b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m<br>
-            <b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³<br>
-            <b>Classificação:</b> {classificacao}
+            <div style="font-family: Arial, sans-serif; font-size: 14px;">
+                <h4 style="margin:0; padding:0; color: #2c3e50;">{row.get('Açude', 'N/A')}</h4>
+                <p><b>Município:</b> {row.get('Município', 'N/A')}</p>
+                <p><b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m</p>
+                <p><b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m</p>
+                <p><b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³</p>
+                <p><b>Classificação:</b> <span style="color: {color_marker}; font-weight: bold;">{classificacao}</span></p>
+            </div>
             """
             
             folium.CircleMarker(
@@ -255,47 +286,54 @@ def render_dados():
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
     
-        # Adiciona legenda
+        # --- LEGENDA ATUALIZADA ---
         legend_html = '''
         <div style="position: fixed; 
                     bottom: 50px; left: 50px; width: 180px; 
                     border:2px solid grey; z-index:9999; 
                     font-size:14px; background:white;
-                    padding: 10px;">
-            <p style="margin:0; padding:0; font-weight:bold;">Legenda:</p>
+                    padding: 10px; font-family: Arial, sans-serif;">
+            <p style="margin:0 0 10px 0; padding:0; font-weight:bold; border-bottom:1px solid #eee; color: #2c3e50;">Legenda:</p>
             <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#d73027; margin-right:5px;"></div>
+                <div style="width:20px; height:20px; background:#d73027; margin-right:5px; border:1px solid #555;"></div>
                 <span>Criticidade Alta</span>
             </div>
             <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#fc8d59; margin-right:5px;"></div>
+                <div style="width:20px; height:20px; background:#fc8d59; margin-right:5px; border:1px solid #555;"></div>
                 <span>Criticidade Média</span>
             </div>
             <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#fee08b; margin-right:5px;"></div>
+                <div style="width:20px; height:20px; background:#fee08b; margin-right:5px; border:1px solid #555;"></div>
                 <span>Criticidade Baixa</span>
             </div>
             <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#1a9850; margin-right:5px;"></div>
+                <div style="width:20px; height:20px; background:#1a9850; margin-right:5px; border:1px solid #555;"></div>
                 <span>Fora de Criticidade</span>
             </div>
             <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#999999; margin-right:5px;"></div>
+                <div style="width:20px; height:20px; background:#999999; margin-right:5px; border:1px solid #555;"></div>
                 <span>Sem classificação</span>
             </div>
         </div>
         '''
         m.get_root().html.add_child(folium.Element(legend_html))
     
-        # Plugins adicionais
+        # --- PLUGINS ADICIONAIS ---
         Fullscreen().add_to(m)
         MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
         folium.LayerControl().add_to(m)
         
-        # Exibe o mapa
-        folium_static(m)
+        # --- EXIBIÇÃO DO MAPA ---
+        folium_static(m, width=1000, height=600)
     else:
         st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
+    
+    # --- DEBUG: MOSTRAR CLASSIFICAÇÕES ENCONTRADAS ---
+    if st.checkbox("Mostrar informações técnicas (debug)"):
+        if 'classificacoes_presentes' in st.session_state:
+            st.write("Classificações encontradas no GeoJSON:", st.session_state.classificacoes_presentes)
+        else:
+            st.warning("Nenhuma classificação foi identificada no GeoJSON")
 # --- FIM DO BLOCO DO MAPA ---
     
     # --- INDICADORES DE DESEMPENHO (KPIs) ---
@@ -542,6 +580,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
