@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go 
 from html import escape
 from utils.common import load_docs_data
 
@@ -149,3 +150,4 @@ def render_docs():
             st.info("Não há valores válidos de Vazão média para montar o gráfico.")
     else:
         st.info("Colunas 'Operação' e 'Vazão média' não encontradas na base de dados.")
+
