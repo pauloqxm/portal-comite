@@ -165,9 +165,26 @@ def render_dados():
 
     dff = dff.sort_values(["Açude", "Data"])
 
-    # ===================== Mapa dos Açudes =====================
+# ===================== Mapa dos Açudes =====================
     st.subheader("🌍 Mapa dos Açudes")
-    
+
+    # CSS para ocupar largura total
+    st.markdown("""
+    <style>
+    section.main > div.block-container {
+      max-width: 100% !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+    .stIFrame iframe, iframe, .folium-map {
+      width: 100% !important;
+      height: 78vh !important; /* altura em viewport height */
+      display: block;
+      border: none;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     with st.expander("Mapas de Fundo", expanded=False):
         tile_option = st.selectbox(
             "Estilo do Mapa:",
@@ -175,11 +192,11 @@ def render_dados():
             index=0,
             key='map_style_select'
         )
-    
+
     # GeoJSONs adicionais
     geojson_bacia = geojson_data.get('geojson_bacia', {})
     geojson_sedes = geojson_data.get('geojson_sedes', {})
-    
+
     # Configurações dos tiles
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
@@ -189,7 +206,7 @@ def render_dados():
         "Esri Satellite": {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
         "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
     }
-    
+
     # Configuração inicial do mapa
     if not dff.empty and {'Latitude', 'Longitude'}.issubset(dff.columns):
         start_center = [float(dff['Latitude'].mean()), float(dff['Longitude'].mean())]
@@ -205,7 +222,6 @@ def render_dados():
 
     # Cores por classificação
     def get_classification_color(classificacao):
-        """Retorna a cor baseada na classificação padronizada"""
         classificacao = padronizar_classificacao(classificacao)
         color_map = {
             "fora de criticidade": "#8DCC90",
@@ -292,10 +308,10 @@ def render_dados():
                 lon = float(row['Longitude'])
             except Exception:
                 continue
-            
+
             classificacao = row.get('Classificação', 'Sem classificação')
             color_marker = get_classification_color(classificacao)
-            
+
             popup_html = f"""
             <div style="font-family: Arial, sans-serif; font-size: 14px;">
                 <h4 style="margin:0; padding:0; color: #2c3e50;">{row.get('Açude', 'N/A')}</h4>
@@ -306,7 +322,7 @@ def render_dados():
                 <p><b>Classificação:</b> <span style="color: {color_marker}; font-weight: bold;">{classificacao}</span></p>
             </div>
             """
-            
+
             folium.CircleMarker(
                 location=[lat, lon],
                 radius=6,
@@ -323,10 +339,10 @@ def render_dados():
     MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
 
-    # Exibe o mapa com legenda
-    folium_static(m, width=1000, height=600)
+    # Exibe o mapa com largura total
+    folium_static(m, width=1400, height=650)
 
-    # Legenda
+    # Legenda (igual ao seu código)
     st.markdown("""
     <style>
     .map-legend-container {
@@ -367,7 +383,7 @@ def render_dados():
         color: #333;
     }
     </style>
-    
+
     <div class="map-legend-container">
         <div class="map-legend">
             <div class="legend-items">
@@ -395,7 +411,7 @@ def render_dados():
         </div>
     </div>
     """, unsafe_allow_html=True)
-
+    
     # ===================== KPIs =====================
     st.markdown("---")
     st.subheader("📊 Indicadores de Desempenho (KPIs)")
@@ -611,5 +627,6 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
