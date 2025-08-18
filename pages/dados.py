@@ -115,413 +115,326 @@ def render_dados():
         st.stop()  # Interrompe a execução se não houver dados
 
 # ---------- Filtros ----------
-    with st.container():
-        st.markdown('<div class="expander-rounded">', unsafe_allow_html=True)
-        with st.expander("☰ Filtros (clique para expandir)", expanded=True):
-            st.markdown('<div class="filter-card"><div class="filter-title">Filtros de Visualização</div>', unsafe_allow_html=True)
+  with st.container():
+      st.markdown('<div class="expander-rounded">', unsafe_allow_html=True)
+      with st.expander("☰ Filtros (clique para expandir)", expanded=True):
+          st.markdown('<div class="filter-card"><div class="filter-title">Filtros de Visualização</div>', unsafe_allow_html=True)
 
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                opcoes_acudes = sorted(df["Açude"].dropna().unique().tolist())
-                acudes_sel = st.multiselect("Açude", options=opcoes_acudes, default=[])
-            with col2:
-                opcoes_municipios = sorted(df["Município"].dropna().unique().tolist())
-                municipios_sel = st.multiselect("Município", options=opcoes_municipios, default=[])
-            with col3:
-                # Certifique-se que opcoes_classificacao está definido corretamente
-                classificacao_sel = st.multiselect(
-                    "Classificação", 
-                    options=opcoes_classificacao, 
-                    default=opcoes_classificacao  # Isso seleciona todos por padrão
-                )
-            with col4:
-                datas_validas = df["Data"]
-                if not datas_validas.empty:
-                    data_min = datas_validas.min().date()
-                    data_max = datas_validas.max().date()
-                    periodo = st.date_input(
-                        "Período",
-                        value=(data_min, data_max),
-                        min_value=data_min,
-                        max_value=data_max,
-                        format="DD/MM/YYYY"
-                    )
-                else:
-                    periodo = None
-            st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+          col1, col2, col3, col4 = st.columns(4)
+          with col1:
+              opcoes_acudes = sorted(df["Açude"].dropna().unique().tolist())
+              acudes_sel = st.multiselect("Açude", options=opcoes_acudes, default=[])
+          with col2:
+              opcoes_municipios = sorted(df["Município"].dropna().unique().tolist())
+              municipios_sel = st.multiselect("Município", options=opcoes_municipios, default=[])
+          with col3:
+              # Padroniza as opções de classificação
+              classificacao_sel = st.multiselect(
+                  "Classificação", 
+                  options=opcoes_classificacao, 
+                  default=opcoes_classificacao,
+                  format_func=lambda x: str(x).strip().title()
+              )
+          with col4:
+              datas_validas = df["Data"]
+              if not datas_validas.empty:
+                  data_min = datas_validas.min().date()
+                  data_max = datas_validas.max().date()
+                  periodo = st.date_input(
+                      "Período",
+                      value=(data_min, data_max),
+                      min_value=data_min,
+                      max_value=data_max,
+                      format="DD/MM/YYYY"
+                  )
+              else:
+                  periodo = None
+          st.markdown("</div>", unsafe_allow_html=True)
+      st.markdown("</div>", unsafe_allow_html=True)
 
-    # Aplicação dos filtros
-    if municipios_sel:
-        df_filtrado = df[df["Município"].isin(municipios_sel)]
-    else:
-        df_filtrado = df.copy()
+  # ---------- Aplicação dos Filtros ----------
+  def padronizar_classificacao(valor):
+      """Padroniza os valores de classificação para comparação"""
+      if pd.isna(valor):
+          return "sem classificação"
+      valor = str(valor).strip().lower()
+      if "fora" in valor and "criticidade" in valor:
+          return "fora de criticidade"
+      return valor
 
-    if acudes_sel:
-        df_filtrado = df_filtrado[df_filtrado["Açude"].isin(acudes_sel)]
+  # Aplica os filtros de forma consistente
+  df_filtrado = df.copy()
 
-    if classificacao_sel:
-        df_filtrado = df_filtrado[df_filtrado["Classificação"].isin(classificacao_sel)]
+  # Filtro de Açudes
+  if acudes_sel:
+      df_filtrado = df_filtrado[df_filtrado["Açude"].isin(acudes_sel)]
 
-    if periodo and len(periodo) == 2:
-        data_inicio, data_fim = periodo
-        df_filtrado = df_filtrado[
-            (df_filtrado["Data"].dt.date >= data_inicio) & 
-            (df_filtrado["Data"].dt.date <= data_fim)
-        ]
+  # Filtro de Municípios
+  if municipios_sel:
+      df_filtrado = df_filtrado[df_filtrado["Município"].isin(municipios_sel)]
 
-    # ---------- Aplicação dos filtros na planilha ----------
-    dff = df.copy()
-    if acudes_sel:
-        dff = dff[dff["Açude"].isin(acudes_sel)]
-    if municipios_sel:
-        dff = dff[dff["Município"].isin(municipios_sel)]
-    if classificacao_sel:
-        dff = dff[dff["Classificação"].isin(classificacao_sel)]
-    if periodo:
-        if len(periodo) == 1:
-            ini = fim = pd.to_datetime(periodo[0])
-        else:
-            ini, fim = [pd.to_datetime(d) for d in periodo]
-        dff = dff[(dff["Data"] >= ini) & (dff["Data"] <= fim)]
+  # Filtro de Classificação (com tratamento especial para "Fora de Criticidade")
+  if classificacao_sel:
+      # Padroniza os valores selecionados
+      classificacoes_filtradas = [padronizar_classificacao(c) for c in classificacao_sel]
+      
+      # Aplica o filtro com valores padronizados
+      df_filtrado = df_filtrado[
+          df_filtrado["Classificação"].apply(padronizar_classificacao).isin(classificacoes_filtradas)
+      ]
 
-    if dff.empty:
-        st.info("Não há dados para os filtros selecionados.")
-        return
+  # Filtro de Período
+  if periodo:
+      if len(periodo) == 1:
+          data_inicio = data_fim = pd.to_datetime(periodo[0])
+      else:
+          data_inicio, data_fim = [pd.to_datetime(d) for d in periodo]
+      df_filtrado = df_filtrado[
+          (df_filtrado["Data"] >= data_inicio) & 
+          (df_filtrado["Data"] <= data_fim)
+      ]
 
-    # Latitude/Longitude a partir de "Coordenadas"
-    if 'Coordenadas' in dff.columns:
-        try:
-            dff[['Latitude', 'Longitude']] = dff['Coordenadas'].astype(str).str.split(',', expand=True).astype(float)
-        except Exception:
-            # fallback mais tolerante
-            latlon = dff['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
-            dff['Latitude']  = pd.to_numeric(latlon[0], errors='coerce')
-            dff['Longitude'] = pd.to_numeric(latlon[1], errors='coerce')
-    else:
-        st.warning("A coluna 'Coordenadas' não foi encontrada. O mapa não será exibido.")
+  if df_filtrado.empty:
+      st.info("Não há dados para os filtros selecionados.")
+      st.stop()
 
-    dff = dff.sort_values(["Açude", "Data"])
+  # ---------- Preparação dos dados para o mapa ----------
+  if 'Coordenadas' in df_filtrado.columns:
+      try:
+          df_filtrado[['Latitude', 'Longitude']] = df_filtrado['Coordenadas'].astype(str).str.split(',', expand=True).astype(float)
+      except Exception:
+          latlon = df_filtrado['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
+          df_filtrado['Latitude'] = pd.to_numeric(latlon[0], errors='coerce')
+          df_filtrado['Longitude'] = pd.to_numeric(latlon[1], errors='coerce')
 
-    # ===================== Mapa dos Açudes =====================
- 
+  df_filtrado = df_filtrado.sort_values(["Açude", "Data"])
 
-    st.subheader("🌍 Mapa dos Açudes")
-    
-    with st.expander("Mapas de Fundo", expanded=False):
-        tile_option = st.selectbox(
-            "Estilo do Mapa:",
-            ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
-            index=0,
-            key='map_style_select'
-        )
-    
-    # GeoJSONs adicionais já carregados
-    geojson_bacia = geojson_data.get('geojson_bacia', {})
-    geojson_sedes = geojson_data.get('geojson_sedes', {})
-    
-    # Tiles
-    tile_config = {
-        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
-        "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
-        "CartoDB positron": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
-        "CartoDB dark_matter": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
-        "Esri Satellite": {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
-        "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
-    }
-    
-    # Base segura para o mapa
-    try:
-        df_base = df_filtrado.copy()
-    except NameError:
-        df_base = dff.copy() if 'dff' in locals() else pd.DataFrame()
-    
-    if not df_base.empty and 'Coordenadas' in df_base.columns:
-        if not {'Latitude', 'Longitude'}.issubset(df_base.columns):
-            latlon = df_base['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
-            if latlon.shape[1] == 2:
-                df_base['Latitude']  = pd.to_numeric(latlon[0], errors='coerce')
-                df_base['Longitude'] = pd.to_numeric(latlon[1], errors='coerce')
-    
-    if not df_base.empty and {'Latitude', 'Longitude'}.issubset(df_base.columns):
-        start_center = [float(df_base['Latitude'].mean()), float(df_base['Longitude'].mean())]
-    else:
-        start_center = [-5.2, -39.5]
-    
-    # Inicializa o mapa
-    m = folium.Map(location=start_center, zoom_start=9, tiles=None)
-    folium.TileLayer(
-        tiles=tile_config[tile_option]["tiles"],
-        attr=tile_config[tile_option]["attr"],
-        name=tile_option
-    ).add_to(m)
-    
-    # Cores por classificação
-    def get_classification_color(props: dict) -> str:
-        keys = ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']
-        classificacao = None
-        for k in keys:
-            if k in (props or {}):
-                classificacao = str(props[k]).strip()
-                break
-        if not classificacao:
-            return "#999999"
-        color_map = {
-            "Criticidade Alta":  "#E24F42",
-            "criticidade alta":  "#E24F42",
-            "Alta":              "#E24F42",
-            "Criticidade Média": "#ECC116",
-            "criticidade média": "#ECC116",
-            "Média":             "#ECC116",
-            "Criticidade Baixa": "#F4FA4A",
-            "criticidade baixa": "#F4FA4A",
-            "Baixa":             "#F4FA4A",
-            "Fora de Criticidade": "#8DCC90",
-            "fora de criticidade": "#8DCC90",
-            "Fora criticidade":    "#8DCC90",
-            "fora criticidade":    "#8DCC90",
-            "Normal":              "#8DCC90",
-            "Sem classificação":   "#999999"
-        }
-        low = classificacao.lower()
-        for k, v in color_map.items():
-            if k.lower() == low:
-                return v
-        return "#999999"
-    
-    def style_function(feature):
-        props = feature.get('properties', {})
-        return {
-            'fillColor': get_classification_color(props),
-            'color': '#555555',
-            'weight': 1.5,
-            'fillOpacity': 0.7,
-            'opacity': 0.9
-        }
-    
-    # Bacia do Banabuiú + fit_bounds
-    if geojson_bacia:
-        gj_bacia = folium.GeoJson(
-            geojson_bacia,
-            name="Bacia do Banabuiú",
-            style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.1},
-            tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])
-        ).add_to(m)
-    
-        # Enquadra o mapa pela bacia
-        try:
-            coords_all = []
-            feats = geojson_bacia.get("features", [])
-            for feature in feats:
-                geom = feature.get("geometry", {})
-                gtype = geom.get("type")
-                gcoords = geom.get("coordinates", [])
-                if gtype == "Polygon":
-                    for ring in gcoords:
-                        coords_all.extend(ring)
-                elif gtype == "MultiPolygon":
-                    for poly in gcoords:
-                        for ring in poly:
-                            coords_all.extend(ring)
-                elif gtype == "Point":
-                    coords_all.append(gcoords)
-                elif gtype in ("MultiPoint", "LineString", "MultiLineString"):
-                    for c in gcoords:
-                        if isinstance(c, (list, tuple)) and len(c) >= 2:
-                            coords_all.append(c)
-            if coords_all:
-                lons, lats = zip(*coords_all)
-                m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
-        except Exception as e:
-            st.warning(f"Não foi possível centralizar pela bacia: {e}")
-    
-    # Sedes Municipais
-    if geojson_sedes and isinstance(geojson_sedes, dict) and "features" in geojson_sedes:
-        sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=True)
-        for feature in geojson_sedes["features"]:
-            props  = feature.get("properties", {})
-            geom   = feature.get("geometry", {})
-            coords = geom.get("coordinates", [])
-            if geom.get("type") == "Point" and isinstance(coords, (list, tuple)) and len(coords) >= 2:
-                nome = props.get("NOME_MUNIC", "Sem nome")
-                try:
-                    lat, lon = float(coords[1]), float(coords[0])
-                    folium.Marker(
-                        [lat, lon],
-                        icon=folium.CustomIcon(
-                            "https://cdn-icons-png.flaticon.com/512/854/854878.png",
-                            icon_size=(25, 25)
-                        ),
-                        tooltip=nome
-                    ).add_to(sedes_layer)
-                except Exception:
-                    continue
-        sedes_layer.add_to(m)
-    
-    # Helpers para filtrar GeoJSON pela Classificação selecionada
-    def _get_classificacao_from_props(props: dict):
-        for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
-            if k in (props or {}) and pd.notna(props[k]):
-                return str(props[k]).strip()
-        return None
-    
-    def filtrar_geojson_por_classificacao(geojson_fc: dict, classes_sel):
-        if not geojson_fc or geojson_fc.get('type') != 'FeatureCollection':
-            return {}
-        sel_lower = {str(c).lower() for c in (classes_sel or [])}
-        feats = []
-        for f in geojson_fc.get('features', []):
-            cls = _get_classificacao_from_props(f.get('properties', {}))
-            if cls is None:
-                if {'sem classificação', 'sem classificacao'} & sel_lower:
-                    feats.append(f)
-            else:
-                if cls.lower() in sel_lower:
-                    feats.append(f)
-        return {'type': 'FeatureCollection', 'features': feats} if feats else {}
-    
-    # Situação da Bacia (filtrada pelos filtros)
-    geojson_situa_filtrado = filtrar_geojson_por_classificacao(geojson_situa, classificacao_sel)
-    if geojson_situa_filtrado:
-        try:
-            situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
-            possiveis = ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']
-            campo_tooltip = None
-            for cand in possiveis:
-                if any(cand in (f.get('properties') or {}) for f in geojson_situa_filtrado.get('features', [])):
-                    campo_tooltip = cand
-                    break
-            if campo_tooltip is None:
-                campo_tooltip = 'Classificação'
-    
-            folium.GeoJson(
-                geojson_situa_filtrado,
-                style_function=style_function,
-                tooltip=folium.GeoJsonTooltip(
-                    fields=[campo_tooltip],
-                    aliases=['Classificação:'],
-                    sticky=True,
-                    style="font-weight: bold;"
-                )
-            ).add_to(situa_group)
-    
-            situa_group.add_to(m)
-        except Exception as e:
-            st.error(f"Erro ao processar a camada de Situação: {e}")
-    else:
-        st.info("Nenhuma área da camada 'Situação da Bacia' corresponde à Classificação selecionada.")
-    
-    # Marcadores dos Açudes (já filtrados em dff)
-    if not df_base.empty and {'Latitude', 'Longitude'}.issubset(df_base.columns):
-        for _, row in df_base.iterrows():
-            try:
-                lat = float(row['Latitude'])
-                lon = float(row['Longitude'])
-            except Exception:
-                continue
-            classificacao = row.get('Classificação', 'Sem classificação')
-            color_marker = get_classification_color({'Classificação': classificacao})
-            popup_html = f"""
-            <div style="font-family: Arial, sans-serif; font-size: 14px;">
-                <h4 style="margin:0; padding:0; color: #2c3e50;">{row.get('Açude', 'N/A')}</h4>
-                <p><b>Município:</b> {row.get('Município', 'N/A')}</p>
-                <p><b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m</p>
-                <p><b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m</p>
-                <p><b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³</p>
-                <p><b>Classificação:</b> <span style="color: {color_marker}; font-weight: bold;">{classificacao}</span></p>
-            </div>
-            """
-            folium.CircleMarker(
-                location=[lat, lon],
-                radius=6,
-                color=color_marker,
-                fill=True,
-                fill_color=color_marker,
-                fill_opacity=0.9,
-                tooltip=row.get('Açude', 'N/A'),
-                popup=folium.Popup(popup_html, max_width=300)
-            ).add_to(m)
-    
-    # Plugins e controles
-    Fullscreen().add_to(m)
-    MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
-    folium.LayerControl(collapsed=False).add_to(m)
-    
-    # Container para o mapa e legenda
-    map_container = st.container()
-    with map_container:
-        # Render do Mapa
-        folium_static(m, width=1000, height=600)
-        
-        # Legenda Fixa na Parte Inferior
-        st.markdown("""
-        <style>
-        .map-legend-container {
-            position: relative;
-            margin-top: -40px;
-            margin-bottom: 20px;
-            z-index: 1000;
-        }
-        .map-legend {
-            background: white;
-            padding: 10px 15px;
-            border-radius: 5px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            border: 1px solid #eee;
-            display: inline-block;
-            margin: 0 auto;
-        }
-        .legend-items {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            justify-content: center;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-        }
-        .legend-color {
-            width: 18px;
-            height: 18px;
-            margin-right: 8px;
-            border: 1px solid #555;
-            border-radius: 3px;
-        }
-        .legend-label {
-            font-size: 13px;
-            font-family: Arial, sans-serif;
-            color: #333;
-        }
-        </style>
-        
-        <div class="map-legend-container">
-            <div class="map-legend">
-                <div class="legend-items">
-                    <div class="legend-item">
-                        <div class="legend-color" style="background-color: #E24F42;"></div>
-                        <span class="legend-label">Criticidade Alta</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background-color: #ECC116;"></div>
-                        <span class="legend-label">Criticidade Média</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background-color: #F4FA4A;"></div>
-                        <span class="legend-label">Criticidade Baixa</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background-color: #8DCC90;"></div>
-                        <span class="legend-label">Fora de Criticidade</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background-color: #999999;"></div>
-                        <span class="legend-label">Sem classificação</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+  # ===================== Mapa dos Açudes =====================
+  st.subheader("🌍 Mapa dos Açudes")
+
+  with st.expander("Mapas de Fundo", expanded=False):
+      tile_option = st.selectbox(
+          "Estilo do Mapa:",
+          ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
+          index=0,
+          key='map_style_select'
+      )
+
+  # Configurações dos tiles
+  tile_config = {
+      "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
+      "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+      "CartoDB positron": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
+      "CartoDB dark_matter": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
+      "Esri Satellite": {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
+      "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
+  }
+
+  # Configuração inicial do mapa
+  if not df_filtrado.empty and {'Latitude', 'Longitude'}.issubset(df_filtrado.columns):
+      start_center = [float(df_filtrado['Latitude'].mean()), float(df_filtrado['Longitude'].mean())]
+  else:
+      start_center = [-5.2, -39.5]  # Coordenadas padrão
+
+  m = folium.Map(location=start_center, zoom_start=9, tiles=None)
+  folium.TileLayer(
+      tiles=tile_config[tile_option]["tiles"],
+      attr=tile_config[tile_option]["attr"],
+      name=tile_option
+  ).add_to(m)
+
+  # Cores por classificação
+  def get_classification_color(classificacao):
+      """Retorna a cor baseada na classificação padronizada"""
+      classificacao = padronizar_classificacao(classificacao)
+      color_map = {
+          "fora de criticidade": "#8DCC90",
+          "criticidade alta": "#E24F42",
+          "criticidade média": "#ECC116",
+          "criticidade baixa": "#F4FA4A",
+          "sem classificação": "#999999"
+      }
+      return color_map.get(classificacao, "#999999")
+
+  # Adiciona camadas do GeoJSON
+  if geojson_bacia:
+      gj_bacia = folium.GeoJson(
+          geojson_bacia,
+          name="Bacia do Banabuiú",
+          style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.1},
+          tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])
+      ).add_to(m)
+
+  # Sedes Municipais
+  if geojson_sedes and isinstance(geojson_sedes, dict) and "features" in geojson_sedes:
+      sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=True)
+      for feature in geojson_sedes["features"]:
+          props = feature.get("properties", {})
+          geom = feature.get("geometry", {})
+          coords = geom.get("coordinates", [])
+          if geom.get("type") == "Point" and isinstance(coords, (list, tuple)) and len(coords) >= 2:
+              nome = props.get("NOME_MUNIC", "Sem nome")
+              try:
+                  lat, lon = float(coords[1]), float(coords[0])
+                  folium.Marker(
+                      [lat, lon],
+                      icon=folium.CustomIcon(
+                          "https://cdn-icons-png.flaticon.com/512/854/854878.png",
+                          icon_size=(25, 25)
+                      ),
+                      tooltip=nome
+                  ).add_to(sedes_layer)
+              except Exception:
+                  continue
+      sedes_layer.add_to(m)
+
+  # Filtra GeoJSON pela classificação selecionada
+  def filtrar_geojson_por_classificacao(geojson_fc, classes_sel):
+      if not geojson_fc or geojson_fc.get('type') != 'FeatureCollection':
+          return {}
+      sel_lower = {str(c).lower() for c in (classes_sel or [])}
+      feats = []
+      for f in geojson_fc.get('features', []):
+          cls = _get_classificacao_from_props(f.get('properties', {}))
+          if cls is None:
+              if {'sem classificação', 'sem classificacao'} & sel_lower:
+                  feats.append(f)
+          else:
+              if cls.lower() in sel_lower:
+                  feats.append(f)
+      return {'type': 'FeatureCollection', 'features': feats} if feats else {}
+
+  geojson_situa_filtrado = filtrar_geojson_por_classificacao(geojson_situa, classificacao_sel)
+  if geojson_situa_filtrado:
+      situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
+      folium.GeoJson(
+          geojson_situa_filtrado,
+          style_function=lambda feature: {
+              'fillColor': get_classification_color(feature.get('properties', {}).get('Classificação')),
+              'color': '#555555',
+              'weight': 1.5,
+              'fillOpacity': 0.7,
+              'opacity': 0.9
+          },
+          tooltip=folium.GeoJsonTooltip(
+              fields=['Classificação'],
+              aliases=['Classificação:'],
+              sticky=True
+          )
+      ).add_to(situa_group)
+      situa_group.add_to(m)
+
+  # Adiciona marcadores dos açudes
+  if not df_filtrado.empty and {'Latitude', 'Longitude'}.issubset(df_filtrado.columns):
+      for _, row in df_filtrado.iterrows():
+          try:
+              lat = float(row['Latitude'])
+              lon = float(row['Longitude'])
+          except Exception:
+              continue
+          
+          classificacao = row.get('Classificação', 'Sem classificação')
+          color_marker = get_classification_color(classificacao)
+          
+          popup_html = f"""
+          <div style="font-family: Arial, sans-serif; font-size: 14px;">
+              <h4 style="margin:0; padding:0; color: #2c3e50;">{row.get('Açude', 'N/A')}</h4>
+              <p><b>Município:</b> {row.get('Município', 'N/A')}</p>
+              <p><b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m</p>
+              <p><b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m</p>
+              <p><b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³</p>
+              <p><b>Classificação:</b> <span style="color: {color_marker}; font-weight: bold;">{classificacao}</span></p>
+          </div>
+          """
+          
+          folium.CircleMarker(
+              location=[lat, lon],
+              radius=6,
+              color=color_marker,
+              fill=True,
+              fill_color=color_marker,
+              fill_opacity=0.9,
+              tooltip=row.get('Açude', 'N/A'),
+              popup=folium.Popup(popup_html, max_width=300)
+          ).add_to(m)
+
+  # Adiciona controles ao mapa
+  Fullscreen().add_to(m)
+  MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
+  folium.LayerControl(collapsed=False).add_to(m)
+
+  # Exibe o mapa com legenda
+  folium_static(m, width=1000, height=600)
+
+  # Legenda
+  st.markdown("""
+  <style>
+  .map-legend-container {
+      position: relative;
+      margin-top: -40px;
+      margin-bottom: 20px;
+      z-index: 1000;
+  }
+  .map-legend {
+      background: white;
+      padding: 10px 15px;
+      border-radius: 5px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border: 1px solid #eee;
+      display: inline-block;
+      margin: 0 auto;
+  }
+  .legend-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+  }
+  .legend-item {
+      display: flex;
+      align-items: center;
+  }
+  .legend-color {
+      width: 18px;
+      height: 18px;
+      margin-right: 8px;
+      border: 1px solid #555;
+      border-radius: 3px;
+  }
+  .legend-label {
+      font-size: 13px;
+      font-family: Arial, sans-serif;
+      color: #333;
+  }
+  </style>
+
+  <div class="map-legend-container">
+      <div class="map-legend">
+          <div class="legend-items">
+              <div class="legend-item">
+                  <div class="legend-color" style="background-color: #E24F42;"></div>
+                  <span class="legend-label">Criticidade Alta</span>
+              </div>
+              <div class="legend-item">
+                  <div class="legend-color" style="background-color: #ECC116;"></div>
+                  <span class="legend-label">Criticidade Média</span>
+              </div>
+              <div class="legend-item">
+                  <div class="legend-color" style="background-color: #F4FA4A;"></div>
+                  <span class="legend-label">Criticidade Baixa</span>
+              </div>
+              <div class="legend-item">
+                  <div class="legend-color" style="background-color: #8DCC90;"></div>
+                  <span class="legend-label">Fora de Criticidade</span>
+              </div>
+              <div class="legend-item">
+                  <div class="legend-color" style="background-color: #999999;"></div>
+                  <span class="legend-label">Sem classificação</span>
+              </div>
+          </div>
+      </div>
+  </div>
+  """, unsafe_allow_html=True)
 
 
     # ===================== KPIs =====================
@@ -738,6 +651,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
