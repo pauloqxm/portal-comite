@@ -159,56 +159,82 @@ def render_docs():
     # Renderiza como HTML (sem virar bloco de código)
     st.markdown(table_html, unsafe_allow_html=True)
 
-# --- Gráfico comparativo Operação x Vazão média ---
+# --- Gráfico de Barras Verticais: Operação x Vazão média ---
     st.markdown("---")
-    st.subheader("📊 Comparativo: Operação x Vazão média")
+    st.subheader("📊 Comparativo: Operação x Vazão média (Barras Verticais)")
 
-    # Verifica se as colunas necessárias existem
     if all(col in df_filtrado.columns for col in ["Operação", "Vazão média"]) and not df_filtrado.empty:
         try:
-            # Pré-processamento dos dados
-            df_plot = df_filtrado.copy()
-            
-            # Converte a vazão para numérico
-            df_plot["Vazão média (l/s)"] = (
+            # Pré-processamento seguro
+            df_plot = df_filtrado[["Operação", "Vazão média"]].copy()
+            df_plot["Vazão (l/s)"] = (
                 df_plot["Vazão média"]
                 .astype(str)
                 .str.replace(",", ".")
                 .str.extract(r"(\d+\.?\d*)")[0]
                 .astype(float)
-            )
-            
-            # Remove valores nulos
-            df_plot = df_plot.dropna(subset=["Vazão média (l/s)"])
+            ).dropna()
             
             if not df_plot.empty:
-                # Cria o gráfico com Plotly Express
-                fig = px.bar(
-                    df_plot.sort_values("Vazão média (l/s)", ascending=False),
-                    x="Operação",
-                    y="Vazão média (l/s)",
-                    color="Vazão média (l/s)",
-                    color_continuous_scale="Greens",
-                    text="Vazão média (l/s)",
-                    height=500
-                )
+                # Ordena por vazão (maior para menor)
+                df_plot = df_plot.sort_values("Vazão (l/s)", ascending=False)
                 
-                fig.update_traces(
-                    texttemplate='%{text:.1f}',
-                    textposition='outside'
-                )
+                # Criação do gráfico de barras verticais
+                fig = go.Figure()
                 
+                fig.add_trace(go.Bar(
+                    x=df_plot["Operação"],
+                    y=df_plot["Vazão (l/s)"],
+                    marker=dict(
+                        color=df_plot["Vazão (l/s)"],
+                        colorscale="Greens",
+                        cmin=0,
+                        colorbar=dict(title="Vazão (l/s)")
+                    ),
+                    text=df_plot["Vazão (l/s)"].round(1),
+                    textposition="outside",
+                    hovertemplate="<b>%{x}</b><br>Vazão: %{y:.1f} l/s<extra></extra>"
+                ))
+                
+                # Layout ajustado para barras verticais
                 fig.update_layout(
-                    xaxis_title="Operação",
-                    yaxis_title="Vazão média (l/s)",
-                    coloraxis_showscale=False
+                    template="plotly_white",
+                    height=600,
+                    xaxis=dict(
+                        title="Operação",
+                        tickangle=-45,
+                        type="category",
+                        categoryorder="total descending"
+                    ),
+                    yaxis=dict(title="Vazão Média (l/s)"),
+                    margin=dict(l=50, r=50, t=80, b=150),
+                    hoverlabel=dict(bgcolor="white", font_size=12)
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # Legenda explicativa
+                st.caption("""
+                <style>
+                    .legenda-verde {
+                        background-color: #f0f9f0;
+                        border-radius: 5px;
+                        padding: 10px;
+                        margin-top: 10px;
+                        border-left: 4px solid #228B22;
+                    }
+                </style>
+                <div class="legenda-verde">
+                    <b>Interpretação:</b> Valores mais altos indicam maior vazão média associada à operação.
+                    Barras em verde mais intenso representam maiores vazões.
+                </div>
+                """, unsafe_allow_html=True)
+                
             else:
-                st.warning("Não há dados válidos para exibir o gráfico.")
+                st.warning("Não foram encontrados valores numéricos válidos na coluna 'Vazão média'.")
                 
         except Exception as e:
-            st.error(f"Erro ao processar os dados: {str(e)}")
+            st.error(f"Erro ao gerar gráfico: {str(e)}")
     else:
-        st.info("Dados insuficientes. Verifique se as colunas 'Operação' e 'Vazão média' existem.")
+        st.info("Dados insuficientes. Verifique se as colunas 'Operação' e 'Vazão média' existem no dataset.")
+
