@@ -164,13 +164,13 @@ def render_docs():
     st.markdown("---")
     st.subheader("📊 Comparativo: Operação x Vazão média (Barras Verticais)")
 
-    # Verificação se as colunas necessárias existem
+    # Verifica se as colunas necessárias existem
     if all(col in df_filtrado.columns for col in ["Operação", "Vazão média", "Reservatório/Sistema"]) and not df_filtrado.empty:
         try:
-            # Pré-processamento seguro dos dados, incluindo a coluna Reservatório/Sistema
+            # Pré-processamento dos dados
             df_plot = df_filtrado[["Operação", "Vazão média", "Reservatório/Sistema"]].copy()
             
-            # Converte a vazão para l/s e trata valores inválidos
+            # Converte a vazão para l/s
             df_plot["Vazão (l/s)"] = (
                 df_plot["Vazão média"]
                 .astype(str)
@@ -179,68 +179,45 @@ def render_docs():
                 .astype(float)
             )
             
-            # Remove linhas com valores NaN resultantes da conversão
-            df_plot = df_plot.dropna(subset=["Vazão (l/s)"])
+            # Remove linhas com valores inválidos e agrupa por reservatório para a média
+            df_grouped = df_plot.dropna(subset=["Vazão (l/s)"]).groupby(
+                ["Operação", "Reservatório/Sistema"], as_index=False
+            )["Vazão (l/s)"].mean()
             
-            if not df_plot.empty:
-                # Agrupa os dados para o gráfico de barras
-                df_grouped = df_plot.groupby("Operação").agg(
-                    {"Vazão (l/s)": "mean", "Reservatório/Sistema": lambda x: ", ".join(x.unique())}
-                ).reset_index().sort_values("Vazão (l/s)", ascending=False)
-                
-                # Configuração do gradiente de cores
-                color_scale = [
-                    [0.0, '#e5f5e0'],  # Verde muito claro
-                    [0.2, '#a1d99b'],  # Verde claro
-                    [0.5, '#74c476'],  # Verde médio
-                    [0.8, '#31a354'],  # Verde escuro
-                    [1.0, '#006d2c']   # Verde muito escuro
-                ]
-                
-                # Criação do gráfico
-                fig = go.Figure()
-                
-                fig.add_trace(go.Bar(
-                    x=df_grouped["Operação"],
-                    y=df_grouped["Vazão (l/s)"],
-                    marker=dict(
-                        color=df_grouped["Vazão (l/s)"],
-                        colorscale=color_scale,
-                        cmin=max(0, df_grouped["Vazão (l/s)"].min() * 0.8),
-                        cmax=df_grouped["Vazão (l/s)"].max() * 1.1,
-                        line=dict(width=1, color='#333333'),
-                        colorbar=dict(
-                            title="Vazão (l/s)",
-                            thickness=15,
-                            len=0.8,
-                            yanchor="middle"
-                        )
-                    ),
-                    text=df_grouped["Vazão (l/s)"].round(1),
-                    textposition="outside",
-                    textfont=dict(size=12, color='#333333'),
-                    # AQUI ESTÁ A MUDANÇA: Adiciona o Reservatório ao hover
-                    hovertemplate="<b>Operação: %{x}</b><br>"
-                                  "Vazão Média: %{y:.1f} l/s<br>"
-                                  f"Reservatórios: {df_grouped['Reservatório/Sistema'].tolist()}<extra></extra>"
-                ))
+            if not df_grouped.empty:
+                # Criação do gráfico de barras empilhadas com Plotly Express
+                fig = px.bar(
+                    df_grouped, 
+                    x="Operação", 
+                    y="Vazão (l/s)", 
+                    color="Reservatório/Sistema", # Empilha por reservatório
+                    barmode='stack', # Modo empilhado
+                    labels={"Vazão (l/s)": "Vazão Média (l/s)", "Operação": "Operação"},
+                    hover_data={"Reservatório/Sistema": True, "Vazão (l/s)": ":.1f"}
+                )
                 
                 # Layout otimizado
                 fig.update_layout(
                     template="plotly_white",
-                    height=600,
                     xaxis=dict(
                         title="Operação",
                         tickangle=-45,
-                        type="category",
-                        categoryorder="total descending",
-                        tickfont=dict(size=12)
+                        tickfont=dict(size=12),
+                        categoryorder="total descending" # Ordena por soma total de vazão
                     ),
                     yaxis=dict(
-                        title="Vazão Média (l/s)",
+                        title="Vazão Média Acumulada (l/s)",
                         gridcolor='#f0f0f0'
                     ),
                     margin=dict(l=50, r=50, t=80, b=150),
+                    legend=dict(
+                        title="Reservatório",
+                        orientation="h",
+                        yanchor="bottom",
+                        y=-0.25,
+                        xanchor="center",
+                        x=0.5
+                    ),
                     hoverlabel=dict(
                         bgcolor="white",
                         font_size=12,
@@ -249,7 +226,6 @@ def render_docs():
                     plot_bgcolor='rgba(0,0,0,0)'
                 )
                 
-                # Exibição do gráfico
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # Legenda explicativa
@@ -268,9 +244,7 @@ def render_docs():
                     }
                 </style>
                 <div class="legenda-box">
-                    <b>Interpretação:</b> As barras representam a vazão média de cada operação. 
-                    A intensidade do verde corresponde ao valor da vazão (tons mais escuros = maiores valores).
-                    Valores exatos são mostrados acima de cada barra. Passe o mouse para ver os reservatórios associados.
+                    <b>Interpretação:</b> Cada barra representa uma operação, e as seções coloridas dentro dela correspondem à vazão média de cada reservatório, empilhadas. A altura total da barra é a vazão média total daquela operação.
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -281,6 +255,7 @@ def render_docs():
             st.error(f"Erro ao processar os dados: {str(e)}")
     else:
         st.info("Dados insuficientes. Verifique se as colunas 'Operação', 'Vazão média' e 'Reservatório/Sistema' existem no dataset.")
+
 
 
 
