@@ -88,7 +88,7 @@ def render_docs():
 
     st.markdown(f"**{len(df_filtrado)} registros encontrados**")
 
-    # ---------- Estilos (sem indentação no início!) ----------
+# ---------- Estilos (sem indentação no início!) ----------
     table_style = (
         "<style>"
         ".table-container{overflow:auto;margin:1rem 0;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);} "
@@ -119,7 +119,7 @@ def render_docs():
             data = escape("" if pd.isna(row.get("Data da Reunião")) else str(row.get("Data da Reunião")))
             loc  = escape("" if pd.isna(row.get("Local da Reunião")) else str(row.get("Local da Reunião")))
             par  = escape("" if pd.isna(row.get("Parâmetros aprovados")) else str(row.get("Parâmetros aprovados")))
-            vaz  = escape("" if pd.isna(row.get("Vazão média")) else str(row.get("Vazão média")))
+            vaz = "" if pd.isna(row.get("Vazão média")) else escape(str(row.get("Vazão média")))
             apr  = row.get("Apresentação", "")
             ata  = row.get("Ata da Reunião", "")
 
@@ -188,5 +188,6 @@ def render_docs():
             st.info("Não há valores válidos de Vazão média para montar o gráfico.")
     else:
         st.info("Colunas 'Operação' e 'Vazão média' não encontradas na base de dados.")
+
 
 
