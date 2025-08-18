@@ -234,29 +234,8 @@ def render_dados():
                     st.write("Classificações encontradas:", st.session_state.classificacoes_presentes)
     
         # --- CAMADAS ADICIONAIS ---
-        if geojson_c_gestoras:
-            folium.GeoJson(
-                geojson_c_gestoras, 
-                name="Células Gestoras",
-                style_function=lambda x: {
-                    'color': '#555555',
-                    'fillColor': '#555555',
-                    'weight': 1,
-                    'fillOpacity': 0.1
-                }
-            ).add_to(m)
-            
-        if geojson_poligno:
-            folium.GeoJson(
-                geojson_poligno, 
-                name="Polígonos",
-                style_function=lambda x: {
-                    'color': '#888888',
-                    'fillColor': '#888888',
-                    'weight': 1,
-                    'fillOpacity': 0.2
-                }
-            ).add_to(m)
+                  
+        
     
         # --- MARCADORES DOS AÇUDES ---
         for _, row in dff.iterrows():
@@ -573,6 +552,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
