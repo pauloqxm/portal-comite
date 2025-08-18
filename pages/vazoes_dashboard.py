@@ -120,53 +120,54 @@ def render_vazoes_dashboard():
     )
 
 # === Gráficos de Vazão e Volume ===
-  st.subheader("📈 Evolução da Vazão Operada por Reservatório")
-  fig = go.Figure()
-  cores = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#17becf", "#e377c2"]
-  reservatorios = df_filtrado["Reservatório Monitorado"].dropna().unique()
+    st.subheader("📈 Evolução da Vazão Operada por Reservatório")
+    fig = go.Figure()
+    cores = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#17becf", "#e377c2"]
+    reservatorios = df_filtrado["Reservatório Monitorado"].dropna().unique()
 
-  for i, r in enumerate(reservatorios):
-      dfr = df_filtrado[df_filtrado["Reservatório Monitorado"] == r] \
-              .sort_values("Data").groupby("Data", as_index=False).last()
+    for i, r in enumerate(reservatorios):
+        dfr = df_filtrado[df_filtrado["Reservatório Monitorado"] == r] \
+                .sort_values("Data").groupby("Data", as_index=False).last()
 
-      # Linha principal (Vazão Operada)
-      y_vals, unit_suffix = convert_vazao(dfr["Vazão Operada"], unidade_sel)
-      fig.add_trace(go.Scatter(
-          x=dfr["Data"], y=y_vals, mode="lines+markers", name=r,
-          line=dict(shape="hv", width=2, color=cores[i % len(cores)]),
-          marker=dict(size=5),
-          hovertemplate=f"<b>{r}</b><br>Data: %{{x|%d/%m/%Y}}<br>"
-                        f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
-      ))
+        # Linha principal (Vazão Operada)
+        y_vals, unit_suffix = convert_vazao(dfr["Vazão Operada"], unidade_sel)
+        fig.add_trace(go.Scatter(
+            x=dfr["Data"], y=y_vals, mode="lines+markers", name=r,
+            line=dict(shape="hv", width=2, color=cores[i % len(cores)]),
+            marker=dict(size=5),
+            hovertemplate=f"<b>{r}</b><br>Data: %{{x|%d/%m/%Y}}<br>"
+                          f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
+        ))
 
-      # Caso tenha apenas um reservatório selecionado → adicionar linhas extras
-      if len(reservatorios) == 1 and len(dfr) > 1:
-          # --- Média ponderada ---
-          dfr["dias_ativos"] = dfr["Data"].diff().dt.days.fillna(0)
-          if not dfr.empty:
-              dfr.loc[dfr.index[-1], "dias_ativos"] = \
-                  (df_filtrado["Data"].max() - dfr["Data"].iloc[-1]).days + 1
+        # Caso tenha apenas um reservatório selecionado → adicionar linhas extras
+        if len(reservatorios) == 1 and len(dfr) > 1:
+            # --- Média ponderada ---
+            dfr["dias_ativos"] = dfr["Data"].diff().dt.days.fillna(0)
+            if not dfr.empty:
+                dfr.loc[dfr.index[-1], "dias_ativos"] = \
+                    (df_filtrado["Data"].max() - dfr["Data"].iloc[-1]).days + 1
 
-              media_pond = (dfr["Vazão Operada"] * dfr["dias_ativos"]).sum() / dfr["dias_ativos"].sum()
-              media_pond_conv, _ = convert_vazao(pd.Series([media_pond]), unidade_sel)
+                media_pond = (dfr["Vazão Operada"] * dfr["dias_ativos"]).sum() / dfr["dias_ativos"].sum()
+                media_pond_conv, _ = convert_vazao(pd.Series([media_pond]), unidade_sel)
 
-              fig.add_hline(
-                  y=media_pond_conv.iloc[0], line_dash="dash", line_width=2, line_color="red",
-                  annotation_text=f"Média Ponderada: {media_pond_conv.iloc[0]:.2f} {unit_suffix}",
-                  annotation_position="top right"
-              )
+                fig.add_hline(
+                    y=media_pond_conv.iloc[0], line_dash="dash", line_width=2, line_color="red",
+                    annotation_text=f"Média Ponderada: {media_pond_conv.iloc[0]:.2f} {unit_suffix}",
+                    annotation_position="top right"
+                )
 
-          # --- Linha Azul (Vazao_Aloc) ---
-          if "Vazao_Aloc" in dfr.columns:
-              y_aloc, _ = convert_vazao(dfr["Vazao_Aloc"], unidade_sel)
-              fig.add_trace(go.Scatter(
-                  x=dfr["Data"], y=y_aloc, mode="lines",
-                  name="Vazão Alocada", line=dict(color="blue", width=2, dash="dot"),
-                  hovertemplate=f"<b>Vazão Alocada</b><br>Data: %{{x|%d/%m/%Y}}<br>"
-                                f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
-              ))
+            # --- Linha Azul (Vazao_Aloc) ---
+            if "Vazao_Aloc" in dfr.columns:
+                y_aloc, _ = convert_vazao(dfr["Vazao_Aloc"], unidade_sel)
+                fig.add_trace(go.Scatter(
+                    x=dfr["Data"], y=y_aloc, mode="lines",
+                    name="Vazão Alocada", line=dict(color="blue", width=2, dash="dot"),
+                    hovertemplate=f"<b>Vazão Alocada</b><br>Data: %{{x|%d/%m/%Y}}<br>"
+                                  f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
+                ))
 
-  st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_evolucao")
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_evolucao")
+
 
 
     # ------------- Abas de gráficos agregados -------------
@@ -365,4 +366,5 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
