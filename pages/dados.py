@@ -492,20 +492,19 @@ def render_dados():
                     errors='coerce'
                 )
                 
-                # Encontra o dia MAIS ANTIGO (em vez do mais recente)
+                # Encontra o dia MAIS ANTIGO
                 data_mais_antiga = dff['Data'].min()
                 
                 # Filtra os dados apenas para o dia mais antigo
                 df_dia_antigo = dff[dff['Data'] == data_mais_antiga]
                 
                 # Calcula a liberação para UMA HORA (m³/s → m³/h)
-                # Supondo que queremos a PRIMEIRA medição do dia mais antigo
                 primeira_liberacao_m3s = df_dia_antigo["Liberação (m³/s)"].iloc[0]  # Pega o primeiro valor
                 liberacao_m3h = primeira_liberacao_m3s * 3600  # Conversão para m³/h
                 
                 st.markdown(f"""
                 <div class="kpi-card">
-                    <div class="kpi-label">Liberação (m³/h) - Dia {data_mais_antiga.strftime('%d/%m/%Y')}</div>
+                    <div class="kpi-label">Vazão Simulada (m³/h)</div>  <!-- Título alterado -->
                     <div class="kpi-value">{liberacao_m3h:,.2f}</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -670,6 +669,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
