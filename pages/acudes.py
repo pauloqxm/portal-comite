@@ -80,7 +80,7 @@ def render_acudes():
 
     df_mapa = df_filtrado.sort_values("Data de Coleta", ascending=False).drop_duplicates(subset=["Reservatório"]).copy()
 
-    # ===================== Mapa Interativo =====================
+# ===================== Mapa Interativo =====================
     st.subheader("🌍 Mapa dos Açudes")
     with st.expander("Configurações do Mapa", expanded=False):
         tile_option = st.selectbox(
@@ -88,10 +88,22 @@ def render_acudes():
             ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
             index=0
         )
+
     geojson_data = load_geojson_data()
     geojson_bacia = geojson_data.get('geojson_bacia', {})
     geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
     geojson_poligno = geojson_data.get('geojson_poligno', {})
+
+    # A função para obter o centro da bacia
+    def get_geojson_center(geojson):
+        if not geojson or not geojson.get('features'):
+            return None
+        coords = geojson['features'][0]['geometry']['coordinates'][0]
+        lats = [c[1] for c in coords]
+        lons = [c[0] for c in coords]
+        center_lat = sum(lats) / len(lats)
+        center_lon = sum(lons) / len(lons)
+        return [center_lat, center_lon]
 
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
@@ -105,12 +117,15 @@ def render_acudes():
     def get_marker_color(percentual):
         if pd.isna(percentual) or 0 <= percentual <= 10: return "#808080"
         if 10.1 <= percentual <= 30: return "#FF0000"
-        if 30.1 <= percentual <= 50: return "#FFFF00"
-        if 50.1 <= percentual <= 70: return "#008000"
-        if 70.1 <= percentual <= 100: return "#0000FF"
+        if 30.1 <= percentual <= 35: return "#FF6600"  # Laranja
+        if 35.1 <= percentual <= 40: return "#FFFF00"
+        if 40.1 <= percentual <= 60: return "#99FF33"
+        if 60.1 <= percentual <= 80: return "#339900"
+        if 80.1 <= percentual <= 100: return "#0000FF"
         return "#800080"
 
     def create_svg_icon(color, size=15):
+        import base64
         svg = (
             f'<svg width="{size}" height="{size}" viewBox="0 0 100 100" '
             f'xmlns="http://www.w3.org/2000/svg">'
@@ -121,11 +136,19 @@ def render_acudes():
         return f"data:image/svg+xml;base64,{svg_b64}"
 
     if not df_filtrado.empty:
-        mapa_center = [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()]
+        # Obtém o centro da camada GeoJSON da bacia
+        bacia_center = get_geojson_center(geojson_bacia)
+        
+        # Define o centro do mapa para a bacia se a informação existir, caso contrário usa a média dos reservatórios
+        mapa_center = bacia_center if bacia_center else [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()]
+        
         m = folium.Map(location=mapa_center, zoom_start=9, tiles=None)
         folium.TileLayer(tiles=tile_config[tile_option]["tiles"], attr=tile_config[tile_option]["attr"], name=tile_option).add_to(m)
+        
+        # Adiciona a camada da bacia e ajusta o mapa para ela
         if geojson_bacia:
-            folium.GeoJson(geojson_bacia, name="Bacia do Banabuiú", style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.1}, tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])).add_to(m)
+            bacia_layer = folium.GeoJson(geojson_bacia, name="Bacia do Banabuiú", style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.1}, tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])).add_to(m)
+            m.fit_bounds(bacia_layer.get_bounds())
         
         gestoras_layer = folium.FeatureGroup(name="Comissões Gestoras", show=False)
         if geojson_c_gestoras:
@@ -173,10 +196,13 @@ def render_acudes():
                 icon=folium.CustomIcon(create_svg_icon(icon_color), icon_size=(15, 15), icon_anchor=(7, 7)),
                 tooltip=f"{row['Reservatório']} - {data_formatada}",
             ).add_to(m)
+        
         folium.LayerControl().add_to(m)
         Fullscreen(position="topleft").add_to(m)
         MousePosition(position="bottomleft").add_to(m)
-        folium_static(m, width=1200)
+        
+        # AQUI ESTÁ A MUDANÇA: Usando st_folium para layout wide
+        st_folium(m, use_container_width=True)
     else:
         st.warning("Não há reservatórios com os filtros aplicados.")
 
@@ -234,3 +260,4 @@ def render_acudes():
             st.download_button(label="Baixar dados completos (CSV)", data=df_filtrado.drop(columns=["Cor", "Status", "TextColor"]).to_csv(index=False, encoding="utf-8-sig", sep=";"), file_name=f"reservatorios_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
     else:
         st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.", icon="⚠️")
+
