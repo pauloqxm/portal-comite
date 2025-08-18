@@ -2,43 +2,73 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import folium
+import json
+import unicodedata
 from streamlit_folium import folium_static
 from folium.plugins import Fullscreen, MousePosition
 from utils.common import load_geojson_data
 
-def render_dados():
-    
-    st.title("📈 Situação das Sedes Municipais")
-    st.markdown("""
-<div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
-    <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
-        <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
-        • Situação do abastecimento <b>das Sede Municipais</b><br>
-        • Linha comparativa de <b>Cota Simulada (m)</b> e <b>Cota Realizada (m)</b><br>
-        • Filtros por <b>Data</b>, <b>Açude</b>, <b>Município</b> e <b>Classificação</b><br>
-        • Mapa interativo com camadas<br>
-        • Indicadores de <b>KPIs</b> e tabela de dados
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
+# Use cache para carregar dados externos uma única vez
+@st.cache_data(show_spinner="Carregando dados da planilha...")
+def load_data():
     google_sheet_url = "https://docs.google.com/spreadsheets/d/1C40uaNmLUeu-k_FGEPZOgF8FwpSU00C9PtQu8Co4AUI/gviz/tq?tqx=out:csv&sheet=simulacoes_data"
     try:
         df = pd.read_csv(google_sheet_url)
         df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
         if 'Coordendas' in df.columns:
             df.rename(columns={'Coordendas': 'Coordenadas'}, inplace=True)
+        return df
     except Exception as e:
         st.error(f"Erro ao carregar os dados da planilha. Verifique se o link está correto e se a planilha está pública. Detalhes do erro: {e}")
-        return
+        return pd.DataFrame()
 
+@st.cache_data(show_spinner="Carregando arquivos GeoJSON...")
+def load_map_data():
+    return load_geojson_data()
+
+# Definição das funções de padronização
+def padronizar_classificacao(valor):
+    """Padroniza os valores de classificação para comparação"""
+    if pd.isna(valor):
+        return "sem classificação"
+    valor = str(valor).strip().lower()
+    if "fora" in valor and "criticidade" in valor:
+        return "fora de criticidade"
+    # Você pode adicionar mais padronizações aqui, se necessário
+    return valor
+
+def _get_classificacao_from_props(props: dict) -> str:
+    """Extrai e padroniza a classificação de um dicionário de propriedades de GeoJSON."""
+    for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
+        if k in props and pd.notna(props[k]):
+            return padronizar_classificacao(props[k])
+    return "sem classificação"
+
+def render_dados():
+    st.title("📈 Situação das Sedes Municipais")
+    st.markdown("""
+<div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
+    <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
+    <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
+    • Situação do abastecimento <b>das Sede Municipais</b><br>
+    • Linha comparativa de <b>Cota Simulada (m)</b> e <b>Cota Realizada (m)</b><br>
+    • Filtros por <b>Data</b>, <b>Açude</b>, <b>Município</b> e <b>Classificação</b><br>
+    • Mapa interativo com camadas<br>
+    • Indicadores de <b>KPIs</b> e tabela de dados
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+    df = load_data()
     if df.empty:
         st.info("A planilha de simulações está vazia. Por favor, verifique os dados.")
         return
 
-    # ---------- Integração das opções de Classificação com o GeoJSON ----------
-    geojson_data = load_geojson_data()
+    # GeoJSONs adicionais
+    geojson_data = load_map_data()
     geojson_situa = geojson_data.get('geojson_situa', {})
+    geojson_bacia = geojson_data.get('geojson_bacia', {})
+    geojson_sedes = geojson_data.get('geojson_sedes', {})
 
     def _get_geo_classes(gj: dict) -> set:
         classes = set()
@@ -47,14 +77,25 @@ def render_dados():
                 props = (f.get('properties') or {})
                 for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
                     if k in props and pd.notna(props[k]):
-                        classes.add(str(props[k]).strip())
+                        classes.add(padronizar_classificacao(props[k]))
                         break
         return classes
 
     geo_classes = _get_geo_classes(geojson_situa)
-    opcoes_classificacao_df = set(df["Classificação"].dropna().astype(str).str.strip().tolist())
-    opcoes_classificacao = sorted(opcoes_classificacao_df.union(geo_classes))
-
+    opcoes_classificacao_df = set(df["Classificação"].dropna().apply(padronizar_classificacao).tolist())
+    opcoes_classificacao_unificadas = sorted(list(opcoes_classificacao_df.union(geo_classes)))
+    
+    # Mapeamento para exibir nomes mais bonitos nos filtros
+    mapa_exibicao = {
+        'fora de criticidade': 'Fora de Criticidade',
+        'criticidade alta': 'Criticidade Alta',
+        'criticidade média': 'Criticidade Média',
+        'criticidade baixa': 'Criticidade Baixa',
+        'sem classificação': 'Sem classificação'
+    }
+    
+    opcoes_exibicao = [mapa_exibicao.get(o, o) for o in opcoes_classificacao_unificadas]
+    
     # ---------- Estilos dos filtros ----------
     st.markdown("""
     <style>
@@ -83,7 +124,8 @@ def render_dados():
                 opcoes_municipios = sorted(df["Município"].dropna().unique().tolist())
                 municipios_sel = st.multiselect("Município", options=opcoes_municipios, default=[])
             with col3:
-                classificacao_sel = st.multiselect("Classificação", options=opcoes_classificacao, default=opcoes_classificacao)
+                classificacao_sel_exibicao = st.multiselect("Classificação", options=opcoes_exibicao, default=opcoes_exibicao)
+                classificacao_sel = [k for k, v in mapa_exibicao.items() if v in classificacao_sel_exibicao]
             with col4:
                 datas_validas = df["Data"]
                 if not datas_validas.empty:
@@ -102,16 +144,6 @@ def render_dados():
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- Aplicação dos filtros ----------
-    def padronizar_classificacao(valor):
-        """Padroniza os valores de classificação para comparação"""
-        if pd.isna(valor):
-            return "sem classificação"
-        valor = str(valor).strip().lower()
-        if "fora" in valor and "criticidade" in valor:
-            return "fora de criticidade"
-        return valor
-
-    # Aplica os filtros de forma consistente
     dff = df.copy()
 
     # Filtro de Açudes
@@ -124,10 +156,7 @@ def render_dados():
 
     # Filtro de Classificação (com tratamento especial para "Fora de Criticidade")
     if classificacao_sel:
-        # Padroniza os valores selecionados
         classificacoes_filtradas = [padronizar_classificacao(c) for c in classificacao_sel]
-        
-        # Aplica o filtro com valores padronizados
         dff = dff[dff["Classificação"].apply(padronizar_classificacao).isin(classificacoes_filtradas)]
 
     # Filtro de Período
@@ -147,7 +176,6 @@ def render_dados():
         try:
             dff[['Latitude', 'Longitude']] = dff['Coordenadas'].astype(str).str.split(',', expand=True).astype(float)
         except Exception:
-            # fallback mais tolerante
             latlon = dff['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
             dff['Latitude'] = pd.to_numeric(latlon[0], errors='coerce')
             dff['Longitude'] = pd.to_numeric(latlon[1], errors='coerce')
@@ -166,11 +194,7 @@ def render_dados():
             index=0,
             key='map_style_select'
         )
-    
-    # GeoJSONs adicionais
-    geojson_bacia = geojson_data.get('geojson_bacia', {})
-    geojson_sedes = geojson_data.get('geojson_sedes', {})
-    
+
     # Configurações dos tiles
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
@@ -243,32 +267,29 @@ def render_dados():
     def filtrar_geojson_por_classificacao(geojson_fc, classes_sel):
         if not geojson_fc or geojson_fc.get('type') != 'FeatureCollection':
             return {}
-        sel_lower = {str(c).lower() for c in (classes_sel or [])}
+        sel_canon = {padronizar_classificacao(c) for c in (classes_sel or [])}
         feats = []
         for f in geojson_fc.get('features', []):
-            cls = _get_classificacao_from_props(f.get('properties', {}))
-            if cls is None:
-                if {'sem classificação', 'sem classificacao'} & sel_lower:
-                    feats.append(f)
-            else:
-                if cls.lower() in sel_lower:
-                    feats.append(f)
+            cls_canon = _get_classificacao_from_props(f.get('properties', {}))
+            if cls_canon in sel_canon:
+                f.setdefault("properties", {})["Classificacao"] = mapa_exibicao.get(cls_canon, cls_canon)
+                feats.append(f)
         return {'type': 'FeatureCollection', 'features': feats} if feats else {}
 
-    geojson_situa_filtrado = filtrar_geojson_por_classificacao(geojson_situa, classificacao_sel)
+    geojson_situa_filtrado = filtrar_geojson_por_classificacao(geojson_situa, classificacao_sel_exibicao)
     if geojson_situa_filtrado:
         situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
         folium.GeoJson(
             geojson_situa_filtrado,
             style_function=lambda feature: {
-                'fillColor': get_classification_color(feature.get('properties', {}).get('Classificação')),
+                'fillColor': get_classification_color(feature.get('properties', {}).get('Classificacao')),
                 'color': '#555555',
                 'weight': 1.5,
                 'fillOpacity': 0.7,
                 'opacity': 0.9
             },
             tooltip=folium.GeoJsonTooltip(
-                fields=['Classificação'],
+                fields=['Classificacao'],
                 aliases=['Classificação:'],
                 sticky=True
             )
@@ -281,6 +302,8 @@ def render_dados():
             try:
                 lat = float(row['Latitude'])
                 lon = float(row['Longitude'])
+                if pd.isna(lat) or pd.isna(lon): # Adiciona esta verificação
+                    continue
             except Exception:
                 continue
             
@@ -417,21 +440,15 @@ def render_dados():
     if 'Liberação (m³/s)' in dff.columns:
         with kpi_cols[0]:
             try:
-                # Converte valores para numérico
                 dff["Liberação (m³/s)"] = pd.to_numeric(
                     dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'),
                     errors='coerce'
                 )
                 
-                # Encontra o dia MAIS ANTIGO
                 data_mais_antiga = dff['Data'].min()
-                
-                # Filtra os dados apenas para o dia mais antigo
                 df_dia_antigo = dff[dff['Data'] == data_mais_antiga]
-                
-                # Calcula a liberação para UMA HORA (m³/s → m³/h)
-                primeira_liberacao_m3s = df_dia_antigo["Liberação (m³/s)"].iloc[0]  # Pega o primeiro valor
-                liberacao_m3h = primeira_liberacao_m3s * 3600  # Conversão para m³/h
+                primeira_liberacao_m3s = df_dia_antigo["Liberação (m³/s)"].iloc[0]
+                liberacao_m3h = primeira_liberacao_m3s * 3600
                 
                 st.markdown(f"""
                 <div class="kpi-card">
@@ -602,3 +619,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
+# Executa o aplicativo
+if __name__ == "__main__":
+    render_dados()
