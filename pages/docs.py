@@ -164,21 +164,29 @@ def render_docs():
     st.markdown("---")
     st.subheader("📊 Comparativo: Operação x Vazão média (Barras Verticais)")
 
-    if all(col in df_filtrado.columns for col in ["Operação", "Vazão média"]) and not df_filtrado.empty:
+    # Verificação se as colunas necessárias existem
+    if all(col in df_filtrado.columns for col in ["Operação", "Vazão média", "Reservatório/Sistema"]) and not df_filtrado.empty:
         try:
-            # Pré-processamento seguro dos dados
-            df_plot = df_filtrado[["Operação", "Vazão média"]].copy()
+            # Pré-processamento seguro dos dados, incluindo a coluna Reservatório/Sistema
+            df_plot = df_filtrado[["Operação", "Vazão média", "Reservatório/Sistema"]].copy()
+            
+            # Converte a vazão para l/s e trata valores inválidos
             df_plot["Vazão (l/s)"] = (
                 df_plot["Vazão média"]
                 .astype(str)
                 .str.replace(",", ".")
                 .str.extract(r"(\d+\.?\d*)")[0]
                 .astype(float)
-            ).dropna()
+            )
+            
+            # Remove linhas com valores NaN resultantes da conversão
+            df_plot = df_plot.dropna(subset=["Vazão (l/s)"])
             
             if not df_plot.empty:
-                # Ordena por vazão (maior para menor)
-                df_plot = df_plot.sort_values("Vazão (l/s)", ascending=False)
+                # Agrupa os dados para o gráfico de barras
+                df_grouped = df_plot.groupby("Operação").agg(
+                    {"Vazão (l/s)": "mean", "Reservatório/Sistema": lambda x: ", ".join(x.unique())}
+                ).reset_index().sort_values("Vazão (l/s)", ascending=False)
                 
                 # Configuração do gradiente de cores
                 color_scale = [
@@ -193,14 +201,14 @@ def render_docs():
                 fig = go.Figure()
                 
                 fig.add_trace(go.Bar(
-                    x=df_plot["Operação"],
-                    y=df_plot["Vazão (l/s)"],
+                    x=df_grouped["Operação"],
+                    y=df_grouped["Vazão (l/s)"],
                     marker=dict(
-                        color=df_plot["Vazão (l/s)"],
+                        color=df_grouped["Vazão (l/s)"],
                         colorscale=color_scale,
-                        cmin=max(0, df_plot["Vazão (l/s)"].min() * 0.8),  # Limite inferior com margem
-                        cmax=df_plot["Vazão (l/s)"].max() * 1.1,         # Limite superior com margem
-                        line=dict(width=1, color='#333333'),             # Borda escura
+                        cmin=max(0, df_grouped["Vazão (l/s)"].min() * 0.8),
+                        cmax=df_grouped["Vazão (l/s)"].max() * 1.1,
+                        line=dict(width=1, color='#333333'),
                         colorbar=dict(
                             title="Vazão (l/s)",
                             thickness=15,
@@ -208,10 +216,13 @@ def render_docs():
                             yanchor="middle"
                         )
                     ),
-                    text=df_plot["Vazão (l/s)"].round(1),
+                    text=df_grouped["Vazão (l/s)"].round(1),
                     textposition="outside",
                     textfont=dict(size=12, color='#333333'),
-                    hovertemplate="<b>%{x}</b><br>Vazão: %{y:.1f} l/s<extra></extra>"
+                    # AQUI ESTÁ A MUDANÇA: Adiciona o Reservatório ao hover
+                    hovertemplate="<b>Operação: %{x}</b><br>"
+                                  "Vazão Média: %{y:.1f} l/s<br>"
+                                  f"Reservatórios: {df_grouped['Reservatório/Sistema'].tolist()}<extra></extra>"
                 ))
                 
                 # Layout otimizado
@@ -259,7 +270,7 @@ def render_docs():
                 <div class="legenda-box">
                     <b>Interpretação:</b> As barras representam a vazão média de cada operação. 
                     A intensidade do verde corresponde ao valor da vazão (tons mais escuros = maiores valores).
-                    Valores exatos são mostrados acima de cada barra.
+                    Valores exatos são mostrados acima de cada barra. Passe o mouse para ver os reservatórios associados.
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -269,6 +280,7 @@ def render_docs():
         except Exception as e:
             st.error(f"Erro ao processar os dados: {str(e)}")
     else:
-        st.info("Dados insuficientes. Verifique se as colunas 'Operação' e 'Vazão média' existem no dataset.")
+        st.info("Dados insuficientes. Verifique se as colunas 'Operação', 'Vazão média' e 'Reservatório/Sistema' existem no dataset.")
+
 
 
