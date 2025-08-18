@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go 
@@ -159,16 +160,14 @@ def render_docs():
     # Renderiza como HTML (sem virar bloco de código)
     st.markdown(table_html, unsafe_allow_html=True)
 
-# --- GRÁFICO DE BARRAS VERTICAIS COM INFORMAÇÕES COMPLETAS ---
+# --- GRÁFICO DE BARRAS VERTICAIS OTIMIZADO ---
     st.markdown("---")
-    st.subheader("📊 Comparativo: Operação x Vazão média por Reservatório")
+    st.subheader("📊 Comparativo: Operação x Vazão média (Barras Verticais)")
 
-    if all(col in df_filtrado.columns for col in ["Operação", "Vazão média", "Reservatório"]) and not df_filtrado.empty:
+    if all(col in df_filtrado.columns for col in ["Operação", "Vazão média"]) and not df_filtrado.empty:
         try:
-            # Pré-processamento seguro
-            df_plot = df_filtrado[["Operação", "Vazão média", "Reservatório"]].copy()
-            
-            # Converter vazão para numérico
+            # Pré-processamento seguro dos dados
+            df_plot = df_filtrado[["Operação", "Vazão média"]].copy()
             df_plot["Vazão (l/s)"] = (
                 df_plot["Vazão média"]
                 .astype(str)
@@ -178,65 +177,47 @@ def render_docs():
             ).dropna()
             
             if not df_plot.empty:
-                # Configurações de formatação adaptáveis
-                formato = {
-                    'tamanho_fonte': 10,          # Tamanho da fonte do texto
-                    'max_caracteres': 18,         # Máximo de caracteres para o nome do reservatório
-                    'altura_grafico': 700,        # Altura total do gráfico
-                    'margem_inferior': 180        # Margem para caber textos
-                }
-                
-                # Ordenar por vazão (maior para menor)
+                # Ordena por vazão (maior para menor)
                 df_plot = df_plot.sort_values("Vazão (l/s)", ascending=False)
                 
-                # Formatar texto das barras (vazão + reservatório abreviado)
-                df_plot["Texto_Barras"] = df_plot.apply(
-                    lambda row: (
-                        f"{row['Vazão (l/s)']:.1f} l/s<br>"
-                        f"({row['Reservatório'][:formato['max_caracteres']]}"
-                        f"{'...' if len(row['Reservatório']) > formato['max_caracteres'] else ''})"
-                    ), axis=1
-                )
-                
-                # Paleta de cores otimizada
+                # Configuração do gradiente de cores
                 color_scale = [
-                    [0.0, '#e5f5e0'], [0.3, '#a1d99b'],
-                    [0.6, '#31a354'], [1.0, '#006d2c']
+                    [0.0, '#e5f5e0'],  # Verde muito claro
+                    [0.2, '#a1d99b'],  # Verde claro
+                    [0.5, '#74c476'],  # Verde médio
+                    [0.8, '#31a354'],  # Verde escuro
+                    [1.0, '#006d2c']   # Verde muito escuro
                 ]
                 
-                # Criar figura
+                # Criação do gráfico
                 fig = go.Figure()
                 
-                # Adicionar barras com informações completas
                 fig.add_trace(go.Bar(
                     x=df_plot["Operação"],
                     y=df_plot["Vazão (l/s)"],
                     marker=dict(
                         color=df_plot["Vazão (l/s)"],
                         colorscale=color_scale,
-                        cmin=max(0, df_plot["Vazão (l/s)"].min() * 0.8),
-                        cmax=df_plot["Vazão (l/s)"].max() * 1.1,
-                        line=dict(width=1, color='#333333')
+                        cmin=max(0, df_plot["Vazão (l/s)"].min() * 0.8),  # Limite inferior com margem
+                        cmax=df_plot["Vazão (l/s)"].max() * 1.1,         # Limite superior com margem
+                        line=dict(width=1, color='#333333'),             # Borda escura
+                        colorbar=dict(
+                            title="Vazão (l/s)",
+                            thickness=15,
+                            len=0.8,
+                            yanchor="middle"
+                        )
                     ),
-                    text=df_plot["Texto_Barras"],
+                    text=df_plot["Vazão (l/s)"].round(1),
                     textposition="outside",
-                    textfont=dict(
-                        size=formato['tamanho_fonte'],
-                        color='#333333'
-                    ),
-                    hovertemplate=(
-                        "<b>Operação:</b> %{x}<br>"
-                        "<b>Vazão:</b> %{y:.1f} l/s<br>"
-                        "<b>Reservatório Completo:</b> %{customdata}<br>"
-                        "<extra></extra>"
-                    ),
-                    customdata=df_plot["Reservatório"]
+                    textfont=dict(size=12, color='#333333'),
+                    hovertemplate="<b>%{x}</b><br>Vazão: %{y:.1f} l/s<extra></extra>"
                 ))
                 
-                # Layout profissional
+                # Layout otimizado
                 fig.update_layout(
                     template="plotly_white",
-                    height=formato['altura_grafico'],
+                    height=600,
                     xaxis=dict(
                         title="Operação",
                         tickangle=-45,
@@ -246,62 +227,48 @@ def render_docs():
                     ),
                     yaxis=dict(
                         title="Vazão Média (l/s)",
-                        gridcolor='#f0f0f0',
-                        zeroline=False
+                        gridcolor='#f0f0f0'
                     ),
-                    margin=dict(
-                        l=50, 
-                        r=50, 
-                        t=80, 
-                        b=formato['margem_inferior']
-                    ),
+                    margin=dict(l=50, r=50, t=80, b=150),
                     hoverlabel=dict(
                         bgcolor="white",
                         font_size=12,
                         font_family="Arial"
                     ),
-                    uniformtext=dict(
-                        minsize=8,
-                        mode='hide'
-                    )
+                    plot_bgcolor='rgba(0,0,0,0)'
                 )
                 
-                # Exibir gráfico
+                # Exibição do gráfico
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # Legenda explicativa
                 st.markdown("""
                 <style>
-                    .info-box {
+                    .legenda-box {
                         background-color: #f8f9fa;
                         border-radius: 5px;
                         padding: 12px;
                         margin-top: 10px;
                         border-left: 4px solid #228B22;
                         font-size: 14px;
-                        line-height: 1.5;
                     }
-                    .info-box b {
+                    .legenda-box b {
                         color: #228B22;
                     }
                 </style>
-                <div class="info-box">
-                    <b>Como interpretar:</b><br>
-                    • Cada barra mostra a <b>vazão em litros/segundo (l/s)</b><br>
-                    • Entre parênteses aparece o <b>reservatório associado</b> (nomes longos são abreviados)<br>
-                    • Passe o mouse sobre as barras para ver o nome completo do reservatório
+                <div class="legenda-box">
+                    <b>Interpretação:</b> As barras representam a vazão média de cada operação. 
+                    A intensidade do verde corresponde ao valor da vazão (tons mais escuros = maiores valores).
+                    Valores exatos são mostrados acima de cada barra.
                 </div>
                 """, unsafe_allow_html=True)
                 
             else:
-                st.warning("Não foram encontrados valores numéricos válidos para exibição.")
+                st.warning("Não foram encontrados valores numéricos válidos na coluna 'Vazão média'.")
                 
         except Exception as e:
-            st.error(f"Erro ao gerar visualização: {str(e)}")
+            st.error(f"Erro ao processar os dados: {str(e)}")
     else:
-        st.info("""
-        Dados necessários não encontrados. Verifique se existem as colunas:
-        - 'Operação'
-        - 'Vazão média' 
-        - 'Reservatório'
-        """)
+        st.info("Dados insuficientes. Verifique se as colunas 'Operação' e 'Vazão média' existem no dataset.")
+
+
