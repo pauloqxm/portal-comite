@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go 
+import altair as alt
 from html import escape
 from utils.common import load_docs_data
 
@@ -158,47 +159,90 @@ def render_docs():
     # Renderiza como HTML (sem virar bloco de código)
     st.markdown(table_html, unsafe_allow_html=True)
 
-# --- Gráfico comparativo Operação x Vazão média (sem agrupar) ---
+# --- Gráfico comparativo Operação x Vazão média (com Altair) ---
     st.markdown("---")
-    st.subheader("Comparativo: Operação x Vazão média")
+    st.subheader("📊 Comparativo: Operação x Vazão média")
 
     if "Operação" in df_filtrado.columns and "Vazão média" in df_filtrado.columns and not df_filtrado.empty:
-        # limpar valores da coluna Vazão média (tirar textos como 'l/s')
+        # Pré-processamento dos dados
         vazao_num = (
             df_filtrado["Vazão média"]
             .astype(str)
-            .str.replace(",", ".", regex=False)            # vírgula -> ponto
-            .str.extract(r"([-+]?\d*\.?\d+)")[0]           # captura apenas o número
+            .str.replace(",", ".", regex=False)
+            .str.extract(r"([-+]?\d*\.?\d+)")[0]
         )
         df_plot = df_filtrado.copy()
-        df_plot["Vazão média (num)"] = pd.to_numeric(vazao_num, errors="coerce")
-
-        # remover linhas sem valor numérico
-        df_plot = df_plot.dropna(subset=["Vazão média (num)"])
-
+        df_plot["Vazão média (l/s)"] = pd.to_numeric(vazao_num, errors="coerce")
+        df_plot = df_plot.dropna(subset=["Vazão média (l/s)"]).sort_values("Vazão média (l/s)", ascending=False)
+        
         if not df_plot.empty:
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=df_plot["Operação"],
-                y=df_plot["Vazão média (num)"],
-                text=df_plot["Vazão média (num)"].round(1),
-                textposition="outside",
-                marker_color="#228B22",
-                name="Vazão média"
-            ))
-            fig.update_layout(
-                template="plotly_white",
-                height=420,
-                margin=dict(l=10, r=10, t=30, b=10),
-                xaxis_title="Operação",
-                yaxis_title="Vazão média (l/s)",
-                showlegend=False
+            import altair as alt
+            
+            # Gráfico de barras interativo com Altair
+            bars = alt.Chart(df_plot).mark_bar(
+                cornerRadiusTop=5,
+                size=20  # Largura das barras
+            ).encode(
+                x=alt.X('Operação:N', 
+                      title='Operação',
+                      sort='-y',  # Ordena pela vazão
+                      axis=alt.Axis(labelAngle=0)),  # Rótulos horizontais
+                y=alt.Y('Vazão média (l/s):Q', 
+                      title='Vazão média (l/s)'),
+                color=alt.Color('Vazão média (l/s):Q',
+                              scale=alt.Scale(scheme='greens'),
+                tooltip=['Operação', 'Vazão média (l/s)']
+            ).properties(
+                height=400,
+                width=alt.Step(40)  # Controla o espaçamento entre barras
             )
-            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+            
+            # Adiciona texto em cima das barras
+            text = bars.mark_text(
+                align='center',
+                baseline='bottom',
+                dy=-5,  # Ajusta posição vertical do texto
+                fontSize=12,
+                fontWeight='bold',
+                color='#333'
+            ).encode(
+                text=alt.Text('Vazão média (l/s):Q', format='.1f')
+            )
+            
+            # Combina os elementos
+            chart = (bars + text).configure_view(
+                strokeWidth=0  # Remove borda
+            ).configure_axis(
+                grid=False,
+                domain=False
+            ).configure_scale(
+                bandPaddingInner=0.2  # Espaçamento entre barras
+            )
+            
+            st.altair_chart(chart, use_container_width=True)
+            
+            # Legenda explicativa
+            st.caption("""
+            <style>
+                .legenda-box {
+                    background-color: #f8f9fa;
+                    border-radius: 5px;
+                    padding: 10px;
+                    margin-top: 10px;
+                    border-left: 4px solid #228B22;
+                }
+            </style>
+            <div class="legenda-box">
+                <b>Análise:</b> Este gráfico compara a vazão média associada a cada operação. 
+                As cores mais intensas indicam maiores valores de vazão.
+            </div>
+            """, unsafe_allow_html=True)
+            
         else:
             st.info("Não há valores válidos de Vazão média para montar o gráfico.")
     else:
         st.info("Colunas 'Operação' e 'Vazão média' não encontradas na base de dados.")
+
 
 
 
