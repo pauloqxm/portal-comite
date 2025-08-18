@@ -70,7 +70,7 @@ def render_dados():
     </style>
     """, unsafe_allow_html=True)
 
-    # ---------- Filtros ----------
+# ---------- Filtros ----------
     with st.container():
         st.markdown('<div class="expander-rounded">', unsafe_allow_html=True)
         with st.expander("☰ Filtros (clique para expandir)", expanded=True):
@@ -84,7 +84,12 @@ def render_dados():
                 opcoes_municipios = sorted(df["Município"].dropna().unique().tolist())
                 municipios_sel = st.multiselect("Município", options=opcoes_municipios, default=[])
             with col3:
-                classificacao_sel = st.multiselect("Classificação", options=opcoes_classificacao, default=opcoes_classificacao)
+                # Certifique-se que opcoes_classificacao está definido corretamente
+                classificacao_sel = st.multiselect(
+                    "Classificação", 
+                    options=opcoes_classificacao, 
+                    default=opcoes_classificacao  # Isso seleciona todos por padrão
+                )
             with col4:
                 datas_validas = df["Data"]
                 if not datas_validas.empty:
@@ -101,6 +106,25 @@ def render_dados():
                     periodo = None
             st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
+
+    # Aplicação dos filtros
+    if municipios_sel:
+        df_filtrado = df[df["Município"].isin(municipios_sel)]
+    else:
+        df_filtrado = df.copy()
+
+    if acudes_sel:
+        df_filtrado = df_filtrado[df_filtrado["Açude"].isin(acudes_sel)]
+
+    if classificacao_sel:
+        df_filtrado = df_filtrado[df_filtrado["Classificação"].isin(classificacao_sel)]
+
+    if periodo and len(periodo) == 2:
+        data_inicio, data_fim = periodo
+        df_filtrado = df_filtrado[
+            (df_filtrado["Data"].dt.date >= data_inicio) & 
+            (df_filtrado["Data"].dt.date <= data_fim)
+        ]
 
     # ---------- Aplicação dos filtros na planilha ----------
     dff = df.copy()
@@ -670,6 +694,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
