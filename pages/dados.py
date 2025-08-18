@@ -8,6 +8,8 @@ from streamlit_folium import folium_static
 from folium.plugins import Fullscreen, MousePosition
 from utils.common import load_geojson_data
 
+st.set_page_config(layout="wide")
+
 def render_dados():
     
     st.title("📈 Situação das Sedes Municipais")
@@ -207,7 +209,7 @@ def render_dados():
         "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
     }
 
-    # Configuração inicial do mapa
+    # Configuração inicial do mapa (será sobrescrita pelo fit_bounds da bacia)
     if not dff.empty and {'Latitude', 'Longitude'}.issubset(dff.columns):
         start_center = [float(dff['Latitude'].mean()), float(dff['Longitude'].mean())]
     else:
@@ -220,19 +222,77 @@ def render_dados():
         name=tile_option
     ).add_to(m)
 
-    # Cores por classificação
+    # --- Helpers ---
+    def padronizar_classificacao(classificacao):
+        c = str(classificacao or "").strip().lower()
+        c = (c
+            .replace("á","a").replace("ã","a").replace("â","a")
+            .replace("é","e").replace("ê","e")
+            .replace("í","i").replace("î","i")
+            .replace("ó","o").replace("ô","o")
+            .replace("ú","u").replace("û","u")
+            .replace("ç","c"))
+        if c == "normal" or ("fora" in c and "criticidade" in c):
+            return "fora de criticidade"
+        if "alta" in c:
+            return "criticidade alta"
+        if "media" in c:
+            return "criticidade média"
+        if "baixa" in c:
+            return "criticidade baixa"
+        if "sem" in c and "class" in c:
+            return "sem classificação"
+        return c or "sem classificação"
+
     def get_classification_color(classificacao):
-        classificacao = padronizar_classificacao(classificacao)
+        c = padronizar_classificacao(classificacao)
         color_map = {
             "fora de criticidade": "#8DCC90",
-            "criticidade alta": "#E24F42",
-            "criticidade média": "#ECC116",
-            "criticidade baixa": "#F4FA4A",
-            "sem classificação": "#999999"
+            "criticidade alta":    "#E24F42",
+            "criticidade média":   "#ECC116",
+            "criticidade baixa":   "#F4FA4A",
+            "sem classificação":   "#999999"
         }
-        return color_map.get(classificacao, "#999999")
+        return color_map.get(c, "#999999")
 
-    # Adiciona camadas do GeoJSON
+    # --- Camada da Bacia + centralização (fit_bounds) ---
+    def _compute_bounds_from_geojson(gj: dict):
+        """Fallback para calcular bounds caso get_bounds não esteja disponível."""
+        try:
+            if not isinstance(gj, dict) or gj.get("type") != "FeatureCollection":
+                return None
+            lats, lons = [], []
+            for feat in gj.get("features", []):
+                geom = (feat or {}).get("geometry", {}) or {}
+                gtype = geom.get("type")
+                coords = geom.get("coordinates", [])
+                if gtype == "Polygon":
+                    for ring in coords:
+                        for lon, lat in ring:
+                            lats.append(lat); lons.append(lon)
+                elif gtype == "MultiPolygon":
+                    for poly in coords:
+                        for ring in poly:
+                            for lon, lat in ring:
+                                lats.append(lat); lons.append(lon)
+                elif gtype == "LineString":
+                    for lon, lat in coords:
+                        lats.append(lat); lons.append(lon)
+                elif gtype == "MultiLineString":
+                    for line in coords:
+                        for lon, lat in line:
+                            lats.append(lat); lons.append(lon)
+                elif gtype == "Point" and len(coords) >= 2:
+                    lons.append(coords[0]); lats.append(coords[1])
+                elif gtype == "MultiPoint":
+                    for lon, lat in coords:
+                        lats.append(lat); lons.append(lon)
+            if lats and lons:
+                return [[min(lats), min(lons)], [max(lats), max(lons)]]
+        except Exception:
+            return None
+        return None
+
     if geojson_bacia:
         gj_bacia = folium.GeoJson(
             geojson_bacia,
@@ -241,12 +301,20 @@ def render_dados():
             tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])
         ).add_to(m)
 
-    # Sedes Municipais
+        # Centraliza o mapa nos limites da bacia
+        try:
+            bounds = gj_bacia.get_bounds()  # disponível no Folium >= 0.14
+        except Exception:
+            bounds = _compute_bounds_from_geojson(geojson_bacia)
+        if bounds:
+            m.fit_bounds(bounds)
+
+    # --- Sedes Municipais ---
     if geojson_sedes and isinstance(geojson_sedes, dict) and "features" in geojson_sedes:
         sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=True)
         for feature in geojson_sedes["features"]:
             props = feature.get("properties", {})
-            geom = feature.get("geometry", {})
+            geom  = feature.get("geometry", {})
             coords = geom.get("coordinates", [])
             if geom.get("type") == "Point" and isinstance(coords, (list, tuple)) and len(coords) >= 2:
                 nome = props.get("NOME_MUNIC", "Sem nome")
@@ -264,7 +332,15 @@ def render_dados():
                     continue
         sedes_layer.add_to(m)
 
-    # Filtra GeoJSON pela classificação selecionada
+    # --- Situação da Bacia (filtrada) ---
+    def _get_classificacao_from_props(props: dict):
+        if not isinstance(props, dict):
+            return None
+        for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
+            if k in props and pd.notna(props[k]):
+                return padronizar_classificacao(props[k])
+        return None
+
     def filtrar_geojson_por_classificacao(geojson_fc, classes_sel):
         if not geojson_fc or geojson_fc.get('type') != 'FeatureCollection':
             return {}
@@ -300,18 +376,15 @@ def render_dados():
         ).add_to(situa_group)
         situa_group.add_to(m)
 
-    # Adiciona marcadores dos açudes
+    # --- Marcadores dos Açudes ---
     if not dff.empty and {'Latitude', 'Longitude'}.issubset(dff.columns):
         for _, row in dff.iterrows():
             try:
-                lat = float(row['Latitude'])
-                lon = float(row['Longitude'])
+                lat = float(row['Latitude']); lon = float(row['Longitude'])
             except Exception:
                 continue
-
             classificacao = row.get('Classificação', 'Sem classificação')
             color_marker = get_classification_color(classificacao)
-
             popup_html = f"""
             <div style="font-family: Arial, sans-serif; font-size: 14px;">
                 <h4 style="margin:0; padding:0; color: #2c3e50;">{row.get('Açude', 'N/A')}</h4>
@@ -322,7 +395,6 @@ def render_dados():
                 <p><b>Classificação:</b> <span style="color: {color_marker}; font-weight: bold;">{classificacao}</span></p>
             </div>
             """
-
             folium.CircleMarker(
                 location=[lat, lon],
                 radius=6,
@@ -334,12 +406,11 @@ def render_dados():
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
 
-    # Adiciona controles ao mapa
+    # --- Controles e render ---
     Fullscreen().add_to(m)
     MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
 
-    # Exibe o mapa com largura total
     folium_static(m, width=1400, height=650)
 
     # Legenda (igual ao seu código)
@@ -627,6 +698,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
