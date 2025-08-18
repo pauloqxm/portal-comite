@@ -139,7 +139,7 @@ def render_dados():
 
     st.subheader("🌍 Mapa dos Açudes")
     
-    with st.expander("Configurações do Mapa", expanded=False):
+    with st.expander("Mapas de Fundo", expanded=False):
         tile_option = st.selectbox(
             "Estilo do Mapa:",
             ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
@@ -669,6 +669,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
