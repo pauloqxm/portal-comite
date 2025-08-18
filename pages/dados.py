@@ -327,13 +327,7 @@ def render_dados():
         folium_static(m, width=1000, height=600)
     else:
         st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
-    
-    # --- DEBUG: MOSTRAR CLASSIFICAÇÕES ENCONTRADAS ---
-    if st.checkbox("Mostrar informações técnicas (debug)"):
-        if 'classificacoes_presentes' in st.session_state:
-            st.write("Classificações encontradas no GeoJSON:", st.session_state.classificacoes_presentes)
-        else:
-            st.warning("Nenhuma classificação foi identificada no GeoJSON")
+        
 # --- FIM DO BLOCO DO MAPA ---
     
     # --- INDICADORES DE DESEMPENHO (KPIs) ---
@@ -580,6 +574,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
