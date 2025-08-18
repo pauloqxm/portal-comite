@@ -159,13 +159,13 @@ def render_docs():
     # Renderiza como HTML (sem virar bloco de código)
     st.markdown(table_html, unsafe_allow_html=True)
 
-# --- Gráfico de Barras Verticais: Operação x Vazão média ---
+# --- GRÁFICO DE BARRAS VERTICAIS OTIMIZADO ---
     st.markdown("---")
     st.subheader("📊 Comparativo: Operação x Vazão média (Barras Verticais)")
 
     if all(col in df_filtrado.columns for col in ["Operação", "Vazão média"]) and not df_filtrado.empty:
         try:
-            # Pré-processamento seguro
+            # Pré-processamento seguro dos dados
             df_plot = df_filtrado[["Operação", "Vazão média"]].copy()
             df_plot["Vazão (l/s)"] = (
                 df_plot["Vazão média"]
@@ -179,7 +179,16 @@ def render_docs():
                 # Ordena por vazão (maior para menor)
                 df_plot = df_plot.sort_values("Vazão (l/s)", ascending=False)
                 
-                # Criação do gráfico de barras verticais
+                # Configuração do gradiente de cores
+                color_scale = [
+                    [0.0, '#e5f5e0'],  # Verde muito claro
+                    [0.2, '#a1d99b'],  # Verde claro
+                    [0.5, '#74c476'],  # Verde médio
+                    [0.8, '#31a354'],  # Verde escuro
+                    [1.0, '#006d2c']   # Verde muito escuro
+                ]
+                
+                # Criação do gráfico
                 fig = go.Figure()
                 
                 fig.add_trace(go.Bar(
@@ -187,16 +196,24 @@ def render_docs():
                     y=df_plot["Vazão (l/s)"],
                     marker=dict(
                         color=df_plot["Vazão (l/s)"],
-                        colorscale="Greens",
-                        cmin=0,
-                        colorbar=dict(title="Vazão (l/s)")
+                        colorscale=color_scale,
+                        cmin=max(0, df_plot["Vazão (l/s)"].min() * 0.8),  # Limite inferior com margem
+                        cmax=df_plot["Vazão (l/s)"].max() * 1.1,         # Limite superior com margem
+                        line=dict(width=1, color='#333333'),             # Borda escura
+                        colorbar=dict(
+                            title="Vazão (l/s)",
+                            thickness=15,
+                            len=0.8,
+                            yanchor="middle"
+                        )
                     ),
                     text=df_plot["Vazão (l/s)"].round(1),
                     textposition="outside",
+                    textfont=dict(size=12, color='#333333'),
                     hovertemplate="<b>%{x}</b><br>Vazão: %{y:.1f} l/s<extra></extra>"
                 ))
                 
-                # Layout ajustado para barras verticais
+                # Layout otimizado
                 fig.update_layout(
                     template="plotly_white",
                     height=600,
@@ -204,29 +221,44 @@ def render_docs():
                         title="Operação",
                         tickangle=-45,
                         type="category",
-                        categoryorder="total descending"
+                        categoryorder="total descending",
+                        tickfont=dict(size=12)
                     ),
-                    yaxis=dict(title="Vazão Média (l/s)"),
+                    yaxis=dict(
+                        title="Vazão Média (l/s)",
+                        gridcolor='#f0f0f0'
+                    ),
                     margin=dict(l=50, r=50, t=80, b=150),
-                    hoverlabel=dict(bgcolor="white", font_size=12)
+                    hoverlabel=dict(
+                        bgcolor="white",
+                        font_size=12,
+                        font_family="Arial"
+                    ),
+                    plot_bgcolor='rgba(0,0,0,0)'
                 )
                 
+                # Exibição do gráfico
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # Legenda explicativa
-                st.caption("""
+                st.markdown("""
                 <style>
-                    .legenda-verde {
-                        background-color: #f0f9f0;
+                    .legenda-box {
+                        background-color: #f8f9fa;
                         border-radius: 5px;
-                        padding: 10px;
+                        padding: 12px;
                         margin-top: 10px;
                         border-left: 4px solid #228B22;
+                        font-size: 14px;
+                    }
+                    .legenda-box b {
+                        color: #228B22;
                     }
                 </style>
-                <div class="legenda-verde">
-                    <b>Interpretação:</b> Valores mais altos indicam maior vazão média associada à operação.
-                    Barras em verde mais intenso representam maiores vazões.
+                <div class="legenda-box">
+                    <b>Interpretação:</b> As barras representam a vazão média de cada operação. 
+                    A intensidade do verde corresponde ao valor da vazão (tons mais escuros = maiores valores).
+                    Valores exatos são mostrados acima de cada barra.
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -234,7 +266,8 @@ def render_docs():
                 st.warning("Não foram encontrados valores numéricos válidos na coluna 'Vazão média'.")
                 
         except Exception as e:
-            st.error(f"Erro ao gerar gráfico: {str(e)}")
+            st.error(f"Erro ao processar os dados: {str(e)}")
     else:
         st.info("Dados insuficientes. Verifique se as colunas 'Operação' e 'Vazão média' existem no dataset.")
+
 
