@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -118,81 +119,24 @@ def render_vazoes_dashboard():
         unsafe_allow_html=True,
     )
 
-# === Gráficos de Vazão e Volume ===
-  st.subheader("📈 Evolução da Vazão Operada por Reservatório")
-  fig = go.Figure()
-  cores = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#17becf", "#e377c2"]
-  reservatorios = df_filtrado["Reservatório Monitorado"].dropna().unique()
+    # === Gráficos de Vazão e Volume ===
+    st.subheader("📈 Evolução da Vazão Operada por Reservatório")
+    fig = go.Figure()
+    cores = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#17becf", "#e377c2"]
+    reservatorios = df_filtrado["Reservatório Monitorado"].dropna().unique()
 
-  for i, r in enumerate(reservatorios):
-      dfr = df_filtrado[df_filtrado["Reservatório Monitorado"] == r].sort_values("Data").groupby("Data", as_index=False).last()
-      
-      # Verifica se há dados para o reservatório
-      if dfr.empty:
-          continue
-
-      # Converte a vazão para a unidade selecionada
-      y_vals, unit_suffix = convert_vazao(dfr["Vazão Operada"], unidade_sel)
-
-      # Adiciona a linha de vazão operada
-      fig.add_trace(go.Scatter(
-          x=dfr["Data"],
-          y=y_vals,
-          mode="lines+markers",
-          name=r,
-          line=dict(shape="hv", width=2, color=cores[i % len(cores)]),
-          marker=dict(size=5),
-          hovertemplate=f"<b>{r}</b><br>Data: %{{x|%d/%m/%Y}}<br>Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
-      ))
-
-      # Adiciona linha de Vazão Alocada se for apenas um reservatório
-      if len(reservatorios) == 1 and "Vazao_Aloc" in dfr.columns:
-          y_vals_aloc, _ = convert_vazao(dfr["Vazao_Aloc"], unidade_sel)
-          fig.add_trace(go.Scatter(
-              x=dfr["Data"],
-              y=y_vals_aloc,
-              mode="lines",
-              name="Vazão Alocada",
-              line=dict(shape="hv", width=2, color="blue"),
-              hovertemplate=f"<b>Vazão Alocada</b><br>Data: %{{x|%d/%m/%Y}}<br>Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
-          ))
-      
-      # Adiciona a linha da Média Ponderada somente se houver mais de um ponto de dados
-      if len(reservatorios) == 1 and len(dfr) > 1:
-          # Cria uma coluna com os dias de duração de cada vazão
-          dfr["dias_ativos"] = dfr["Data"].diff().dt.days.fillna(0)
-          
-          # A última entrada dura do dia do registro até o final do período filtrado
-          dfr.loc[dfr.index[-1], "dias_ativos"] = (df_filtrado["Data"].max() - dfr["Data"].iloc[-1]).days + 1
-          
-          # Garante que os valores para o cálculo são numéricos
-          dfr["Vazão Operada"] = pd.to_numeric(dfr["Vazão Operada"], errors='coerce')
-          
-          # Calcula a média ponderada, garantindo que não há NaNs
-          media_pond = (dfr["Vazão Operada"] * dfr["dias_ativos"]).sum() / dfr["dias_ativos"].sum()
-          
-          # Converte a média ponderada para a unidade selecionada
-          media_pond_conv, _ = convert_vazao(pd.Series([media_pond]), unidade_sel)
-
-          # Adiciona a linha de média ponderada ao gráfico
-          fig.add_hline(
-              y=media_pond_conv.iloc[0],
-              line_dash="dash",
-              line_width=2,
-              line_color="red",
-              annotation_text=f"Média Ponderada: {media_pond_conv.iloc[0]:.2f} {unit_suffix}",
-              annotation_position="top right"
-          )
-
-  # Atualiza layout do gráfico
-  fig.update_layout(
-      xaxis_title="Data",
-      yaxis_title=f"Vazão ({unit_suffix})",
-      legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-      template="plotly_white",
-      hovermode="x unified"
-  )
-  st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_evolucao")
+    for i, r in enumerate(reservatorios):
+        dfr = df_filtrado[df_filtrado["Reservatório Monitorado"] == r].sort_values("Data").groupby("Data", as_index=False).last()
+        y_vals, unit_suffix = convert_vazao(dfr["Vazão Operada"], unidade_sel)
+        fig.add_trace(go.Scatter(x=dfr["Data"], y=y_vals, mode="lines+markers", name=r, line=dict(shape="hv", width=2, color=cores[i % len(cores)]), marker=dict(size=5), hovertemplate=f"<b>{r}</b><br>Data: %{{x|%d/%m/%Y}}<br>Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"))
+        if len(reservatorios) == 1 and len(dfr) > 1:
+            dfr["dias_ativos"] = dfr["Data"].diff().dt.days.fillna(0)
+            if not dfr.empty:
+                dfr.loc[dfr.index[-1], "dias_ativos"] = (df_filtrado["Data"].max() - dfr["Data"].iloc[-1]).days + 1
+                media_pond = (dfr["Vazão Operada"] * dfr["dias_ativos"]).sum() / dfr["dias_ativos"].sum()
+                media_pond_conv, _ = convert_vazao(pd.Series([media_pond]), unidade_sel)
+                fig.add_hline(y=media_pond_conv.iloc[0], line_dash="dash", line_width=2, line_color="red", annotation_text=f"Média Ponderada: {media_pond_conv.iloc[0]:.2f} {unit_suffix}", annotation_position="top right")
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_evolucao")
 
     # ------------- Abas de gráficos agregados -------------
     gtab1, gtab2 = st.tabs(["📊 Média mensal", "📦 Volume Acumulado"])
@@ -390,6 +334,3 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
-
-
-
