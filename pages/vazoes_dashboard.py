@@ -243,7 +243,35 @@ def render_vazoes_dashboard():
       else:
           st.info("Sem dados suficientes para o gráfico de volume.")
 
-# ------------- Mapa com camadas -------------
+# ---------- CSS para modo wide do mapa (full-bleed) ----------
+    st.markdown("""
+    <style>
+    /* usa quase a tela inteira p/ o mapa */
+    :root { --map-height: 78vh; }
+
+    /* remove limite de largura e paddings laterais do container principal */
+    section.main > div.block-container {
+      max-width: 100% !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+
+    /* faz o iframe do folium ocupar 100% da largura e altura definida */
+    .stIFrame iframe, iframe, .folium-map {
+      width: 100% !important;
+      height: var(--map-height) !important;
+      display: block;
+      border: none;
+    }
+
+    /* em telas menores, reduza um pouco a altura */
+    @media (max-width: 768px){
+      :root { --map-height: 65vh; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ------------- Mapa com camadas -------------
     st.subheader("🗺️ Mapa dos Reservatórios com Camadas")
 
     df_mapa = df_filtrado.copy()
@@ -430,7 +458,7 @@ def render_vazoes_dashboard():
         folium.LayerControl(collapsed=True, position="topright").add_to(m)
 
         # Render: width/height são sobrescritos pelo CSS acima -> mapa ocupa 100% da largura
-        folium_static(m, width=None, height=650)
+        folium_static(m, width=1200, height=650)
 
     else:
         st.info("Nenhum ponto com coordenadas disponíveis para plotar no mapa.")
@@ -448,6 +476,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
