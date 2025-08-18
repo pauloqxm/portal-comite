@@ -9,6 +9,8 @@ from folium.plugins import Fullscreen, MiniMap, MousePosition, MeasureControl, M
 import altair as alt
 from utils.common import carregar_dados_vazoes, convert_vazao, load_geojson_data
 
+st.set_page_config(layout="wide")
+
 def render_vazoes_dashboard():
     """Renderiza a página completa do painel de vazões."""
     
@@ -366,5 +368,6 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
