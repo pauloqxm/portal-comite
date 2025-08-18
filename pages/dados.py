@@ -109,8 +109,7 @@ def render_dados():
     dff = dff.sort_values(["Açude", "Data"])
 
 
-# --- BLOCO DO MAPA ATUALIZADO COM CATEGORIAS CORRETAS ---
-   
+# ===================== Mapa dos Açudes (com camadas e base segura) =====================
 
     st.subheader("🌍 Mapa dos Açudes")
     
@@ -122,7 +121,7 @@ def render_dados():
             key='map_style_select'
         )
     
-    # Config tiles (deixe acima do uso)
+    # ---------------- Tiles ----------------
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
         "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
@@ -132,32 +131,42 @@ def render_dados():
         "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
     }
     
-    # Carrega GeoJSONs
-    geojson_data = load_geojson_data()
-    geojson_bacia  = geojson_data.get('geojson_bacia',  {})
-    geojson_sedes  = geojson_data.get('geojson_sedes',  {})
-    geojson_situa  = geojson_data.get('geojson_situa',  {})
+    # ---------------- Carrega GeoJSONs ----------------
+    geojson_data  = load_geojson_data()
+    geojson_bacia = geojson_data.get('geojson_bacia', {})
+    geojson_sedes = geojson_data.get('geojson_sedes', {})
+    geojson_situa = geojson_data.get('geojson_situa', {})
     
-    # Centro do mapa
-    def _centro_padrao():
-        try:
-            if 'Latitude' in dff.columns and 'Longitude' in dff.columns and not dff.empty:
-                return [float(dff['Latitude'].mean()), float(dff['Longitude'].mean())]
-        except Exception:
-            pass
-        # fallback: centro do Ceará (aprox.) se nada disponível
-        return [-5.2, -39.5]
+    # ---------------- Base segura para o mapa (substitui df_filtrado) ----------------
+    import pandas as pd
     
-    if not df_filtrado.empty:
-        mapa_center = _centro_padrao()
+    try:
+        df_base = df_filtrado.copy()  # usa o filtrado se existir
+    except NameError:
+        df_base = dff.copy() if 'dff' in locals() else pd.DataFrame()
+    
+    # Garante Latitude/Longitude a partir de "Coordenadas" no formato "lat,lon"
+    if not df_base.empty and 'Coordenadas' in df_base.columns:
+        if not {'Latitude', 'Longitude'}.issubset(df_base.columns):
+            latlon = df_base['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
+            if latlon.shape[1] == 2:
+                df_base['Latitude']  = pd.to_numeric(latlon[0], errors='coerce')
+                df_base['Longitude'] = pd.to_numeric(latlon[1], errors='coerce')
+    
+    # ---------------- Renderização do mapa ----------------
+    if df_base.empty or df_base['Latitude'].isna().all() or df_base['Longitude'].isna().all():
+        st.info("Nenhum dado válido para exibir no mapa.")
+    else:
+        mapa_center = [float(df_base['Latitude'].mean()), float(df_base['Longitude'].mean())]
         m = folium.Map(location=mapa_center, zoom_start=9, tiles=None)
+    
         folium.TileLayer(
             tiles=tile_config[tile_option]["tiles"],
             attr=tile_config[tile_option]["attr"],
             name=tile_option
         ).add_to(m)
     
-        # ===== Bacia do Banabuiú =====
+        # ===== Camada: Bacia do Banabuiú =====
         if geojson_bacia:
             folium.GeoJson(
                 geojson_bacia,
@@ -166,7 +175,7 @@ def render_dados():
                 tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])
             ).add_to(m)
     
-        # ===== Sedes Municipais =====
+        # ===== Camada: Sedes Municipais =====
         if geojson_sedes and isinstance(geojson_sedes, dict) and "features" in geojson_sedes:
             sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=False)
             for feature in geojson_sedes["features"]:
@@ -176,7 +185,8 @@ def render_dados():
                 if geom.get("type") == "Point" and isinstance(coords, (list, tuple)) and len(coords) >= 2:
                     nome = props.get("NOME_MUNIC", "Sem nome")
                     try:
-                        lat, lon = coords[1], coords[0]  # GeoJSON = [lon, lat]
+                        # GeoJSON: [lon, lat]
+                        lat, lon = float(coords[1]), float(coords[0])
                         folium.Marker(
                             [lat, lon],
                             icon=folium.CustomIcon(
@@ -189,19 +199,18 @@ def render_dados():
                         continue
             sedes_layer.add_to(m)
     
-        # ===== Funções de cor por classificação (arrumadas) =====
+        # ===== Regras de cor por classificação (corrigidas) =====
         def get_classification_color(props: dict) -> str:
-            # tenta achar a chave de classificação (várias grafias)
-            classificacao_keys = ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']
+            # tenta encontrar a chave de classificação (variações)
+            keys = ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']
             classificacao = None
-            for key in classificacao_keys:
-                if key in props:
-                    classificacao = str(props[key]).strip()
+            for k in keys:
+                if k in props:
+                    classificacao = str(props[k]).strip()
                     break
             if not classificacao:
-                return "#999999"  # cinza padrão
+                return "#999999"
     
-            # mapa com HEX válidos (corrigidos)
             color_map = {
                 # Criticidade Alta
                 "Criticidade Alta": "#E24F42",
@@ -218,7 +227,7 @@ def render_dados():
                 "criticidade baixa": "#F4FA4A",
                 "Baixa": "#F4FA4A",
     
-                # Fora de Criticidade (verde)
+                # Fora de Criticidade
                 "Fora de Criticidade": "#8DCC90",
                 "fora de criticidade": "#8DCC90",
                 "Fora criticidade": "#8DCC90",
@@ -228,8 +237,6 @@ def render_dados():
                 # Sem classificação
                 "Sem classificação": "#999999"
             }
-    
-            # busca case-insensitive
             low = classificacao.lower()
             for k, v in color_map.items():
                 if k.lower() == low:
@@ -246,27 +253,26 @@ def render_dados():
                 'opacity': 0.9
             }
     
-        # ===== Situação da Bacia (preenchimento por cor) =====
+        # ===== Camada: Situação da Bacia =====
         if geojson_situa and geojson_situa.get('type') == 'FeatureCollection':
             try:
                 situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
     
-                # (opcional) guardar para debug/inspeção
-                classificacoes_presentes = set()
-                for feature in geojson_situa.get('features', []):
-                    props = feature.get('properties', {})
-                    for key in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
-                        if key in props:
-                            classificacoes_presentes.add(str(props[key]))
-    
-                if classificacoes_presentes:
-                    st.session_state['classificacoes_presentes'] = sorted(list(classificacoes_presentes))
+                # tooltip dinâmico: usa a 1ª chave de classificação existente nas features
+                possiveis = ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']
+                campos_existentes = []
+                for cand in possiveis:
+                    if any(cand in (f.get('properties') or {}) for f in geojson_situa.get('features', [])):
+                        campos_existentes = [cand]
+                        break
+                if not campos_existentes:
+                    campos_existentes = ['Classificação']  # fallback
     
                 folium.GeoJson(
                     geojson_situa,
                     style_function=style_function,
                     tooltip=folium.GeoJsonTooltip(
-                        fields=[k for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO'] if any(k in f.get('properties', {}) for f in geojson_situa.get('features', []))][:1] or ['Classificação'],
+                        fields=campos_existentes,
                         aliases=['Classificação:'],
                         sticky=True,
                         style="font-weight: bold;"
@@ -276,18 +282,12 @@ def render_dados():
                 situa_group.add_to(m)
             except Exception as e:
                 st.error(f"Erro ao processar a camada de Situação: {e}")
-                if 'classificacoes_presentes' in st.session_state:
-                    st.write("Classificações encontradas:", st.session_state['classificacoes_presentes'])
     
-        # ===== Controles =====
+        # ---- Controles e render ----
         folium.LayerControl(collapsed=False).add_to(m)
-    
-        # Render no Streamlit
-        folium_static(m, width=None, height=580)
-    else:
-        st.info("Nenhum dado filtrado para exibir no mapa.")
+        folium_static(m, height=580)
 
-        
+       
 # --- FIM DO BLOCO DO MAPA ---
     
     # --- INDICADORES DE DESEMPENHO (KPIs) ---
@@ -534,6 +534,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
