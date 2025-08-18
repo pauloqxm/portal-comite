@@ -122,9 +122,8 @@ def render_dados():
     
     # Carrega os dados GeoJSON
     geojson_data = load_geojson_data()
-    geojson_situa = geojson_data.get('geojson_situa', {})
-    geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
-    geojson_poligno = geojson_data.get('geojson_poligno', {})
+    geojson_situa = geojson_data.get('geojson_situa', {}) 
+    
     
     # Configurações dos tiles
     tile_config = {
@@ -574,6 +573,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
