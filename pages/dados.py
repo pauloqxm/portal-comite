@@ -158,26 +158,26 @@ def render_dados():
             # Mapa de cores com todas as variações possíveis
             color_map = {
                 # Criticidade Alta
-                "Criticidade Alta": "#d73027",
-                "criticidade alta": "#d73027",
-                "Alta": "#d73027",
+                "Criticidade Alta": "#E24F42",
+                "criticidade alta": "#E24F42",
+                "Alta": "##E24F42",
                 
                 # Criticidade Média
-                "Criticidade Média": "#fc8d59",
-                "criticidade média": "#fc8d59",
-                "Média": "#fc8d59",
+                "Criticidade Média": "#ECC116",
+                "criticidade média": "#ECC116",
+                "Média": "##ECC116",
                 
                 # Criticidade Baixa
-                "Criticidade Baixa": "#fee08b",
-                "criticidade baixa": "#fee08b",
-                "Baixa": "#fee08b",
+                "Criticidade Baixa": "#8DCC90",
+                "criticidade baixa": "#8DCC90",
+                "Baixa": "##8DCC90",
                 
                 # Fora de Criticidade
-                "Fora de Criticidade": "#1a9850",
-                "fora de criticidade": "#1a9850",
-                "Fora criticidade": "#1a9850",
-                "fora criticidade": "#1a9850",
-                "Normal": "#1a9850",
+                "Fora de Criticidade": "#F4FA4A",
+                "fora de criticidade": "#F4FA4A",
+                "Fora criticidade": "#F4FA4A",
+                "fora criticidade": "##F4FA4A",
+                "Normal": "##F4FA4A",
                 
                 # Sem classificação
                 "Sem classificação": "#999999"
@@ -580,6 +580,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
