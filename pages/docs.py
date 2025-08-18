@@ -108,4 +108,62 @@ def render_docs():
     # Renderiza como HTML (sem virar bloco de código)
     st.markdown(table_html, unsafe_allow_html=True)
 
+# --- Gráfico comparativo por Operação (Vazão média x Nº de Reservatórios) ---
+    st.markdown("---")
+    st.subheader("Comparativo por Operação: Vazão média e Nº de Reservatórios")
+
+    cols_ok = {"Operação", "Vazão média", "Reservatório/Sistema"}.issubset(df_filtrado.columns)
+    if cols_ok and not df_filtrado.empty:
+        # extrai parte numérica da 'Vazão média' (aceita vírgula e sufixos como 'l/s')
+        vazao_num = (
+            df_filtrado["Vazão média"]
+            .astype(str)
+            .str.replace(",", ".", regex=False)            # vírgula -> ponto
+            .str.extract(r"([-+]?\d*\.?\d+)")[0]           # pega só o número
+        )
+        df_plot = df_filtrado.copy()
+        df_plot["Vazão média (num)"] = pd.to_numeric(vazao_num, errors="coerce")
+
+        grp = (
+            df_plot.groupby("Operação", dropna=False).agg(
+                vazao_media=("Vazão média (num)", "mean"),
+                n_reservatorios=("Reservatório/Sistema", lambda s: s.astype(str).nunique())
+            )
+            .reset_index()
+            .sort_values("vazao_media", ascending=False)
+        )
+
+        if not grp.empty:
+            fig = go.Figure()
+            # Barra: Vazão média (l/s)
+            fig.add_trace(go.Bar(
+                x=grp["Operação"],
+                y=grp["vazao_media"],
+                name="Vazão média (l/s)"
+            ))
+            # Linha: Nº de reservatórios (eixo secundário)
+            fig.add_trace(go.Scatter(
+                x=grp["Operação"],
+                y=grp["n_reservatorios"],
+                name="Nº de reservatórios",
+                mode="lines+markers",
+                yaxis="y2"
+            ))
+
+            fig.update_layout(
+                template="plotly_white",
+                margin=dict(l=10, r=10, t=10, b=10),
+                height=420,
+                legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
+                xaxis_title="Operação",
+                yaxis=dict(title="Vazão média (l/s)"),
+                yaxis2=dict(title="Nº de reservatórios", overlaying="y", side="right", showgrid=False),
+            )
+            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+        else:
+            st.info("Sem dados suficientes para montar o gráfico.")
+    else:
+        st.info("Não foi possível montar o gráfico. Verifique se as colunas 'Operação', 'Vazão média' e 'Reservatório/Sistema' existem.")
+
+
 
