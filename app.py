@@ -21,25 +21,26 @@ render_header()
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Página Inicial", "💧 Painel de Vazões", "🗺️ Açudes Monitorados", "📈 Situação das Sedes", "🗪 Alocação Negociada", "✉️ Fale Conosco"])
 
 with tab1:
-    🏠 Página Inicial.render_home()
+    Página Inicial.render_home()
 
 with tab2:
-    💧 Painel de Vazões.render_vazoes_dashboard()
+    Painel de Vazões.render_vazoes_dashboard()
 
 with tab3:
-    🗺️ Açudes Monitorados.render_acudes()
+    Açudes Monitorados.render_acudes()
 
 with tab4:
-    📈 Situação das Sedes.render_dados()
+    Situação das Sedes.render_dados()
 
 with tab5:
-    🗪 Alocação Negociada.render_docs()
+    Alocação Negociada.render_docs()
     
 with tab6:
-    ✉️ Fale Conosco.render_fale_conosco() # Chamando a nova função
+    Fale Conosco.render_fale_conosco() # Chamando a nova função
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
 
 
