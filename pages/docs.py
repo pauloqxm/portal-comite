@@ -223,7 +223,7 @@ def render_docs():
                 fig.update_layout(
                     barmode='stack', # Define o modo empilhado para todos os traces
                     template="plotly_white",
-                    height=500,
+                    height=700,
                     xaxis=dict(
                         title="Operação",
                         tickangle=-45,
@@ -249,5 +249,6 @@ def render_docs():
             st.error(f"Erro ao processar os dados: {str(e)}")
     else:
         st.info("Dados insuficientes. Verifique se as colunas 'Operação', 'Vazão média' e 'Reservatório/Sistema' existem no dataset.")
+
 
 
