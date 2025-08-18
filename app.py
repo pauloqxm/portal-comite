@@ -5,7 +5,11 @@ from pages import home, acudes, docs, dados, vazoes_dashboard, fale_conosco # Im
 from utils.common import render_header, render_footer
 
 # ---------------- CONFIG GERAL ----------------
-st.set_page_config(page_title="Dashboard Vazões", layout="wide")
+st.set_page_config(
+    page_title="📊 Comitê Transparente",
+    page_icon="💧",
+    layout="wide"
+)
 
 # ----------------- BARRA FIXA (HEADER) ------------
 render_header()
@@ -14,27 +18,28 @@ render_header()
 # CRIAÇÃO DAS ABAS
 # =========================
 # Adicionando uma nova aba para "Fale Conosco"
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Página Inicial", "💧 Painel de Vazões", "🗺️ Açudes Monitorados", "📈 Situação das Sedes", "📜 Documentos Oficiais", "✉️ Fale Conosco"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Página Inicial", "💧 Painel de Vazões", "🗺️ Açudes Monitorados", "📈 Situação das Sedes", "🗪 Alocação Negociada", "✉️ Fale Conosco"])
 
 with tab1:
-    home.render_home()
+    🏠 Página Inicial.render_home()
 
 with tab2:
-    vazoes_dashboard.render_vazoes_dashboard()
+    💧 Painel de Vazões.render_vazoes_dashboard()
 
 with tab3:
-    acudes.render_acudes()
+    🗺️ Açudes Monitorados.render_acudes()
 
 with tab4:
-    dados.render_dados()
+    📈 Situação das Sedes.render_dados()
 
 with tab5:
-    docs.render_docs()
+    🗪 Alocação Negociada.render_docs()
     
 with tab6:
-    fale_conosco.render_fale_conosco() # Chamando a nova função
+    ✉️ Fale Conosco.render_fale_conosco() # Chamando a nova função
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
 
