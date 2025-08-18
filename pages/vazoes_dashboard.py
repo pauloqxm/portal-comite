@@ -430,7 +430,7 @@ def render_vazoes_dashboard():
         folium.LayerControl(collapsed=True, position="topright").add_to(m)
 
         # Render: width/height são sobrescritos pelo CSS acima -> mapa ocupa 100% da largura
-        folium_static(m, width=1200, height=650)
+        folium_static(m, width=None, height=650)
 
     else:
         st.info("Nenhum ponto com coordenadas disponíveis para plotar no mapa.")
@@ -448,6 +448,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
