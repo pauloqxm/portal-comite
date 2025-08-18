@@ -25,28 +25,66 @@ def render_docs():
         st.info("Não há documentos disponíveis no momento.")
         return
 
-    # ---------- Filtros ----------
+# ---------- Filtros (com cartão de cantos arredondados + multiselect) ----------
+    st.markdown("""
+    <style>
+    .filter-card {
+      border: 1px solid #e6e6e6;
+      border-radius: 14px;
+      padding: 14px;
+      background: linear-gradient(180deg,#ffffff 0%, #fafafa 100%);
+      box-shadow: 0 6px 16px rgba(0,0,0,.06);
+      margin: 6px 0 16px 0;
+    }
+    .filter-title { font-weight:700; color:#006400; margin-bottom:8px; letter-spacing:.2px; }
+    </style>
+    """, unsafe_allow_html=True)
+
     with st.container():
-        st.markdown("**Filtrar documentos**")
-        col1, col2 = st.columns(2)
+        st.markdown('<div class="filter-card">', unsafe_allow_html=True)
+        st.markdown('<div class="filter-title">Filtrar documentos</div>', unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns(3)
+
+        # Opções únicas (como string) e ordenadas
+        ops_opts = sorted(df["Operação"].dropna().astype(str).unique()) if "Operação" in df.columns else []
+        datas_opts = sorted(df["Data da Reunião"].dropna().astype(str).unique()) if "Data da Reunião" in df.columns else []
+        reserv_opts = sorted(df["Reservatório/Sistema"].dropna().astype(str).unique()) if "Reservatório/Sistema" in df.columns else []
+
         with col1:
-            ops = ["Todos"] + (sorted(df["Operação"].dropna().astype(str).unique()) if "Operação" in df.columns else [])
-            filtro_operacao = st.selectbox("Operação", ops, index=0)
+            filtro_operacao = st.multiselect("Operação", ops_opts, default=ops_opts)
+
         with col2:
-            datas = ["Todos"] + (sorted(df["Data da Reunião"].dropna().astype(str).unique()) if "Data da Reunião" in df.columns else [])
-            filtro_data = st.selectbox("Data da Reunião", datas, index=0)
+            filtro_data = st.multiselect("Data da Reunião", datas_opts, default=datas_opts)
+
+        with col3:
+            filtro_reservatorio = st.multiselect("Reservatório/Sistema", reserv_opts, default=reserv_opts)
+
         busca = st.text_input("Buscar em todos os campos", "")
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # ---------- Aplicação dos filtros ----------
     df_filtrado = df.copy()
-    if filtro_operacao != "Todos" and "Operação" in df_filtrado.columns:
-        df_filtrado = df_filtrado[df_filtrado["Operação"].astype(str) == str(filtro_operacao)]
-    if filtro_data != "Todos" and "Data da Reunião" in df_filtrado.columns:
-        df_filtrado = df_filtrado[df_filtrado["Data da Reunião"].astype(str) == str(filtro_data)]
+
+    # Filtra por Operação
+    if filtro_operacao and "Operação" in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado["Operação"].astype(str).isin([str(x) for x in filtro_operacao])]
+
+    # Filtra por Data
+    if filtro_data and "Data da Reunião" in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado["Data da Reunião"].astype(str).isin([str(x) for x in filtro_data])]
+
+    # Filtra por Reservatório/Sistema
+    if filtro_reservatorio and "Reservatório/Sistema" in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado["Reservatório/Sistema"].astype(str).isin([str(x) for x in filtro_reservatorio])]
+
+    # Busca textual em todas as colunas
     if busca:
         busca_lower = busca.lower().strip()
-        mask = df_filtrado.apply(lambda row: any(busca_lower in str(val).lower() for val in row.values), axis=1)
-        df_filtrado = df_filtrado[mask]
+        df_filtrado = df_filtrado[
+            df_filtrado.apply(lambda row: any(busca_lower in str(val).lower() for val in row.values), axis=1)
+        ]
 
     st.markdown(f"**{len(df_filtrado)} registros encontrados**")
 
@@ -150,4 +188,5 @@ def render_docs():
             st.info("Não há valores válidos de Vazão média para montar o gráfico.")
     else:
         st.info("Colunas 'Operação' e 'Vazão média' não encontradas na base de dados.")
+
 
