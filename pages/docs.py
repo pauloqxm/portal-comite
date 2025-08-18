@@ -214,7 +214,7 @@ def render_docs():
                             cmin=max(0, df_grouped["Vazão (l/s)"].min() * 0.8),
                             cmax=df_grouped["Vazão (l/s)"].max() * 1.1,
                             line=dict(width=1, color='#333333'),
-                            showscale=False # Desativa a barra lateral de cor
+                            colorbar=dict(title='Vazão (l/s)')  # Adiciona a barra de cores (gradiente)
                         ),
                         hovertemplate="<b>Operação: %{x}</b><br>Reservatório: "+reservatorio+"<br>Vazão: %{y:.1f} l/s<extra></extra>"
                     ))
@@ -235,38 +235,11 @@ def render_docs():
                         gridcolor='#f0f0f0'
                     ),
                     margin=dict(l=50, r=50, t=80, b=150),
-                    legend=dict(
-                        title="Reservatório",
-                        orientation="v",
-                        yanchor="top",
-                        y=1,
-                        xanchor="right",
-                        x=1.1
-                    ),
+                    showlegend=False,  # Remove a legenda
                     plot_bgcolor='rgba(0,0,0,0)'
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
-                
-                # Legenda explicativa
-                st.markdown("""
-                <style>
-                    .legenda-box {
-                        background-color: #f8f9fa;
-                        border-radius: 5px;
-                        padding: 12px;
-                        margin-top: 10px;
-                        border-left: 4px solid #228B22;
-                        font-size: 14px;
-                    }
-                    .legenda-box b {
-                        color: #228B22;
-                    }
-                </style>
-                <div class="legenda-box">
-                    <b>Interpretação:</b> Cada barra representa uma operação, e as seções coloridas dentro dela correspondem à vazão média de cada reservatório, empilhadas. A altura total da barra é a vazão média total daquela operação. A intensidade do verde corresponde ao valor da vazão de cada reservatório (tons mais escuros = maiores valores).
-                </div>
-                """, unsafe_allow_html=True)
                 
             else:
                 st.warning("Não foram encontrados valores numéricos válidos na coluna 'Vazão média'.")
@@ -275,3 +248,4 @@ def render_docs():
             st.error(f"Erro ao processar os dados: {str(e)}")
     else:
         st.info("Dados insuficientes. Verifique se as colunas 'Operação', 'Vazão média' e 'Reservatório/Sistema' existem no dataset.")
+
