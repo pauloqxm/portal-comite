@@ -268,7 +268,7 @@ def render_dados():
     
     # Sedes Municipais
     if geojson_sedes and isinstance(geojson_sedes, dict) and "features" in geojson_sedes:
-        sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=False)
+        sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=True)
         for feature in geojson_sedes["features"]:
             props  = feature.get("properties", {})
             geom   = feature.get("geometry", {})
@@ -669,6 +669,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
