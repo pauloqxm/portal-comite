@@ -168,16 +168,16 @@ def render_dados():
                 "Média": "##ECC116",
                 
                 # Criticidade Baixa
-                "Criticidade Baixa": "#8DCC90",
-                "criticidade baixa": "#8DCC90",
-                "Baixa": "##8DCC90",
+                "Criticidade Baixa": "#F4FA4A",
+                "criticidade baixa": "#F4FA4A",
+                "Baixa": "#F4FA4A",
                 
                 # Fora de Criticidade
-                "Fora de Criticidade": "#F4FA4A",
-                "fora de criticidade": "#F4FA4A",
-                "Fora criticidade": "#F4FA4A",
-                "fora criticidade": "##F4FA4A",
-                "Normal": "##F4FA4A",
+                "Fora de Criticidade": "#8DCC90",
+                "fora de criticidade": "8DCC90",
+                "Fora criticidade": "8DCC90",
+                "fora criticidade": "8DCC90",
+                "Normal": "8DCC90",
                 
                 # Sem classificação
                 "Sem classificação": "#999999"
@@ -580,6 +580,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
