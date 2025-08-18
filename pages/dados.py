@@ -125,9 +125,7 @@ def render_dados():
     geojson_situa = geojson_data.get('geojson_situa', {})
     geojson_bacia = geojson_data.get('geojson_bacia', {})
     geojson_sedes = geojson_data.get('geojson_sedes', {})
-    geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
-    geojson_poligno = geojson_data.get('geojson_poligno', {})
-    
+        
     # Configurações dos tiles
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
@@ -223,7 +221,7 @@ def render_dados():
                     [coords[1], coords[0]],
                     icon=folium.CustomIcon(
                         "https://cdn-icons-png.flaticon.com/512/854/854878.png",
-                        icon_size=(22, 22)
+                        icon_size=(25, 25)
                     ),
                     tooltip=nome
                 ).add_to(sedes_layer)
@@ -263,30 +261,7 @@ def render_dados():
                 if 'classificacoes_presentes' in st.session_state:
                     st.write("Classificações encontradas:", st.session_state.classificacoes_presentes)
     
-        # --- CAMADAS ADICIONAIS ---
-        if geojson_c_gestoras:
-            folium.GeoJson(
-                geojson_c_gestoras, 
-                name="Células Gestoras",
-                style_function=lambda x: {
-                    'color': '#555555',
-                    'fillColor': '#555555',
-                    'weight': 1,
-                    'fillOpacity': 0.1
-                }
-            ).add_to(m)
             
-        if geojson_poligno:
-            folium.GeoJson(
-                geojson_poligno, 
-                name="Polígonos",
-                style_function=lambda x: {
-                    'color': '#888888',
-                    'fillColor': '#888888',
-                    'weight': 1,
-                    'fillOpacity': 0.2
-                }
-            ).add_to(m)
     
         # --- MARCADORES DOS AÇUDES ---
         for _, row in dff.iterrows():
@@ -357,14 +332,7 @@ def render_dados():
     else:
         st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
     
-    # --- DEBUG: MOSTRAR CLASSIFICAÇÕES ENCONTRADAS ---
-    if st.checkbox("Mostrar informações técnicas (debug)"):
-        if 'classificacoes_presentes' in st.session_state:
-            st.write("Classificações encontradas no GeoJSON:", st.session_state.classificacoes_presentes)
-        else:
-            st.warning("Nenhuma classificação foi identificada no GeoJSON")
-
-       
+        
 # --- FIM DO BLOCO DO MAPA ---
     
     # --- INDICADORES DE DESEMPENHO (KPIs) ---
@@ -611,6 +579,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
