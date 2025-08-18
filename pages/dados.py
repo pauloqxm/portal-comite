@@ -37,38 +37,77 @@ def render_dados():
         st.info("A planilha de simulações está vazia. Por favor, verifique os dados.")
         return
 
-    # ---------- Integração das opções de Classificação com o GeoJSON ----------
-    geojson_data  = load_geojson_data()
-    geojson_situa = geojson_data.get('geojson_situa', {})
+    # ---------- Filtros ----------
+    with st.container():
+        st.markdown('<div class="expander-rounded">', unsafe_allow_html=True)
+        with st.expander("☰ Filtros (clique para expandir)", expanded=True):
+            st.markdown('<div class="filter-card"><div class="filter-title">Filtros de Visualização</div>', unsafe_allow_html=True)
 
-    def _get_geo_classes(gj: dict) -> set:
-        classes = set()
-        if isinstance(gj, dict) and gj.get('type') == 'FeatureCollection':
-            for f in gj.get('features', []):
-                props = (f.get('properties') or {})
-                for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
-                    if k in props and pd.notna(props[k]):
-                        classes.add(str(props[k]).strip())
-                        break
-        return classes
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                opcoes_acudes = sorted(df["Açude"].dropna().unique().tolist())
+                acudes_sel = st.multiselect("Açude", options=opcoes_acudes, default=[])
+            with col2:
+                opcoes_municipios = sorted(df["Município"].dropna().unique().tolist())
+                municipios_sel = st.multiselect("Município", options=opcoes_municipios, default=[])
+            with col3:
+                # Padroniza as opções de classificação
+                classificacao_sel = st.multiselect(
+                    "Classificação", 
+                    options=opcoes_classificacao, 
+                    default=opcoes_classificacao,
+                    format_func=lambda x: str(x).strip().title()  # Padroniza a exibição
+                )
+            with col4:
+                datas_validas = df["Data"]
+                if not datas_validas.empty:
+                    data_min = datas_validas.min().date()
+                    data_max = datas_validas.max().date()
+                    periodo = st.date_input(
+                        "Período",
+                        value=(data_min, data_max),
+                        min_value=data_min,
+                        max_value=data_max,
+                        format="DD/MM/YYYY"
+                    )
+                else:
+                    periodo = None
+            st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    geo_classes = _get_geo_classes(geojson_situa)
-    opcoes_classificacao_df = set(df["Classificação"].dropna().astype(str).str.strip().tolist())
-    opcoes_classificacao = sorted(opcoes_classificacao_df.union(geo_classes))
+    # ---------- Aplicação dos Filtros ----------
+    def aplicar_filtros(df, municipios_sel, acudes_sel, classificacao_sel, periodo):
+        # Cria uma cópia do DataFrame para filtrar
+        df_filtrado = df.copy()
 
-    # ---------- Estilos dos filtros ----------
-    st.markdown("""
-    <style>
-      .filter-card { border:1px solid #e6e6e6; border-radius:14px; padding:14px;
-                    background:linear-gradient(180deg,#ffffff 0%, #fafafa 100%);
-                    box-shadow:0 6px 16px rgba(0,0,0,.06); margin:6px 0 16px 0; }
-      .filter-title { font-weight:700; color:#006400; margin-bottom:8px; letter-spacing:.2px; }
-      .expander-rounded > details { border:1px solid #e6e6e6 !important; border-radius:14px !important;
-                                     background:#fff !important; box-shadow:0 4px 14px rgba(0,0,0,.06) !important;
-                                     padding:6px 6px 0 6px !important; }
-      .expander-rounded summary { font-weight:600 !important; color:#006400 !important; }
-    </style>
-    """, unsafe_allow_html=True)
+        # Filtro de Municípios
+        if municipios_sel:
+            df_filtrado = df_filtrado[df_filtrado["Município"].isin(municipios_sel)]
+
+        # Filtro de Açudes
+        if acudes_sel:
+            df_filtrado = df_filtrado[df_filtrado["Açude"].isin(acudes_sel)]
+
+        # Filtro de Classificação (com tratamento especial para "Fora de Criticidade")
+        if classificacao_sel:
+            # Padroniza os valores para comparação
+            classificacoes_filtradas = [str(c).strip().lower() for c in classificacao_sel]
+            df_filtrado = df_filtrado[
+                df_filtrado["Classificação"].astype(str).str.strip().str.lower().isin(classificacoes_filtradas)
+            ]
+
+        # Filtro de Período
+        if periodo and len(periodo) == 2:
+            data_inicio, data_fim = periodo
+            df_filtrado = df_filtrado[
+                (df_filtrado["Data"].dt.date >= data_inicio) & 
+                (df_filtrado["Data"].dt.date <= data_fim)
+            ]
+
+        return df_filtrado
+
+    # Aplica os filtros
+    df_filtrado = aplicar_filtros(df, municipios_sel, acudes_sel, classificacao_sel, periodo)
 
 # ---------- Filtros ----------
     with st.container():
@@ -694,6 +733,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
