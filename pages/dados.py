@@ -372,39 +372,47 @@ def render_dados():
     else:
         st.info("Nenhuma área da camada 'Situação da Bacia' corresponde à Classificação selecionada.")
 
-    # ========= MARCADORES DOS AÇUDES =========
-    if not df_base.empty and {"Latitude", "Longitude"}.issubset(df_base.columns):
-        for _, row in df_base.iterrows():
-            try:
-                lat = float(row["Latitude"]); lon = float(row["Longitude"])
-            except Exception:
-                continue
-            classificacao_canon = row.get("Classificação (canon)", "Sem classificação")
-            color_marker = get_classification_color({"Classificação": classificacao_canon})
+# ========= MARCADORES DOS AÇUDES =========
+  if not df_base.empty and {"Latitude", "Longitude"}.issubset(df_base.columns):
+      for _, row in df_base.iterrows():
+          try:
+              # Ponto crítico: Garanta que lat e lon não são nulos antes de usar
+              lat = float(row["Latitude"])
+              lon = float(row["Longitude"])
+              
+              # Adicione esta verificação para pular valores NaN
+              if pd.isna(lat) or pd.isna(lon):
+                  continue
 
-            # Mostra canônico e original (opcional)
-            classificacao_original = row.get("Classificação", "Sem classificação")
-            popup_html = f"""
-            <div style="font-family: Arial, sans-serif; font-size: 14px;">
-                <h4 style="margin:0; padding:0; color: #2c3e50;">{row.get('Açude', 'N/A')}</h4>
-                <p><b>Município:</b> {row.get('Município', 'N/A')}</p>
-                <p><b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m</p>
-                <p><b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m</p>
-                <p><b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³</p>
-                <p><b>Classificação:</b> <span style="color:{color_marker}; font-weight:bold;">{classificacao_canon}</span>
-                <br><small style="color:#666;">Origem: {classificacao_original}</small></p>
-            </div>
-            """
-            folium.CircleMarker(
-                location=[lat, lon],
-                radius=6,
-                color=color_marker,
-                fill=True,
-                fill_color=color_marker,
-                fill_opacity=0.9,
-                tooltip=row.get("Açude", "N/A"),
-                popup=folium.Popup(popup_html, max_width=300),
-            ).add_to(m)
+          except Exception:
+              continue
+              
+          classificacao_canon = row.get("Classificação (canon)", "Sem classificação")
+          color_marker = get_classification_color({"Classificação": classificacao_canon})
+
+          # Mostra canônico e original (opcional)
+          classificacao_original = row.get("Classificação", "Sem classificação")
+          popup_html = f"""
+          <div style="font-family: Arial, sans-serif; font-size: 14px;">
+              <h4 style="margin:0; padding:0; color: #2c3e50;">{row.get('Açude', 'N/A')}</h4>
+              <p><b>Município:</b> {row.get('Município', 'N/A')}</p>
+              <p><b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m</p>
+              <p><b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m</p>
+              <p><b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³</p>
+              <p><b>Classificação:</b> <span style="color:{color_marker}; font-weight:bold;">{classificacao_canon}</span>
+              <br><small style="color:#666;">Origem: {classificacao_original}</small></p>
+          </div>
+          """
+          folium.CircleMarker(
+              location=[lat, lon],
+              radius=6,
+              color=color_marker,
+              fill=True,
+              fill_color=color_marker,
+              fill_opacity=0.9,
+              tooltip=row.get("Açude", "N/A"),
+              popup=folium.Popup(popup_html, max_width=300),
+          ).add_to(m)
 
     # ========= PLUGINS / CONTROLES =========
     Fullscreen().add_to(m)
@@ -655,3 +663,4 @@ def render_dados():
 # Executa o aplicativo
 if __name__ == "__main__":
     render_dados()
+
