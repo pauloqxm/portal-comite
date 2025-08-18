@@ -37,7 +37,7 @@ def render_dados():
         st.info("A planilha de simulações está vazia. Por favor, verifique os dados.")
         return
 
-    # ---------- Filtros ----------
+# ---------- Filtros ----------
     with st.container():
         st.markdown('<div class="expander-rounded">', unsafe_allow_html=True)
         with st.expander("☰ Filtros (clique para expandir)", expanded=True):
@@ -56,7 +56,7 @@ def render_dados():
                     "Classificação", 
                     options=opcoes_classificacao, 
                     default=opcoes_classificacao,
-                    format_func=lambda x: str(x).strip().title()  # Padroniza a exibição
+                    format_func=lambda x: str(x).strip().title()
                 )
             with col4:
                 datas_validas = df["Data"]
@@ -76,38 +76,43 @@ def render_dados():
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- Aplicação dos Filtros ----------
-    def aplicar_filtros(df, municipios_sel, acudes_sel, classificacao_sel, periodo):
-        # Cria uma cópia do DataFrame para filtrar
-        df_filtrado = df.copy()
+    def padronizar_classificacao(valor):
+        """Padroniza os valores de classificação para comparação"""
+        valor = str(valor).strip().lower()
+        if "fora" in valor and "criticidade" in valor:
+            return "fora de criticidade"
+        return valor
 
-        # Filtro de Municípios
-        if municipios_sel:
-            df_filtrado = df_filtrado[df_filtrado["Município"].isin(municipios_sel)]
+    # Aplica os filtros de forma consistente
+    dff = df.copy()
 
-        # Filtro de Açudes
-        if acudes_sel:
-            df_filtrado = df_filtrado[df_filtrado["Açude"].isin(acudes_sel)]
+    # Filtro de Açudes
+    if acudes_sel:
+        dff = dff[dff["Açude"].isin(acudes_sel)]
 
-        # Filtro de Classificação (com tratamento especial para "Fora de Criticidade")
-        if classificacao_sel:
-            # Padroniza os valores para comparação
-            classificacoes_filtradas = [str(c).strip().lower() for c in classificacao_sel]
-            df_filtrado = df_filtrado[
-                df_filtrado["Classificação"].astype(str).str.strip().str.lower().isin(classificacoes_filtradas)
-            ]
+    # Filtro de Municípios
+    if municipios_sel:
+        dff = dff[dff["Município"].isin(municipios_sel)]
 
-        # Filtro de Período
-        if periodo and len(periodo) == 2:
-            data_inicio, data_fim = periodo
-            df_filtrado = df_filtrado[
-                (df_filtrado["Data"].dt.date >= data_inicio) & 
-                (df_filtrado["Data"].dt.date <= data_fim)
-            ]
+    # Filtro de Classificação (com tratamento especial para "Fora de Criticidade")
+    if classificacao_sel:
+        # Padroniza os valores selecionados
+        classificacoes_filtradas = [padronizar_classificacao(c) for c in classificacao_sel]
 
-        return df_filtrado
+        # Aplica o filtro com valores padronizados
+        dff = dff[dff["Classificação"].apply(padronizar_classificacao).isin(classificacoes_filtradas)]
 
-    # Aplica os filtros
-    df_filtrado = aplicar_filtros(df, municipios_sel, acudes_sel, classificacao_sel, periodo)
+    # Filtro de Período
+    if periodo:
+        if len(periodo) == 1:
+            ini = fim = pd.to_datetime(periodo[0])
+        else:
+            ini, fim = [pd.to_datetime(d) for d in periodo]
+        dff = dff[(dff["Data"] >= ini) & (dff["Data"] <= fim)]
+
+    if dff.empty:
+        st.info("Não há dados para os filtros selecionados.")
+        st.stop()  # Interrompe a execução se não houver dados
 
 # ---------- Filtros ----------
     with st.container():
@@ -733,6 +738,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
 
