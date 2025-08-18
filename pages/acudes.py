@@ -98,15 +98,30 @@ def render_acudes():
     geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
     geojson_poligno = geojson_data.get('geojson_poligno', {})
 
-    # Centralizar o mapa na bacia
-    if geojson_bacia:
-        # Calcular o centro da bacia
-        coords = geojson_bacia['features'][0]['geometry']['coordinates'][0]
-        lats = [coord[1] for coord in coords]
-        lons = [coord[0] for coord in coords]
-        center_lat = sum(lats) / len(lats)
-        center_lon = sum(lons) / len(lons)
-        mapa_center = [center_lat, center_lon]
+# Centralizar o mapa na bacia
+    if geojson_bacia and geojson_bacia.get('features'):
+        try:
+            # Extrair todas as coordenadas da bacia (considerando diferentes estruturas GeoJSON)
+            coords = []
+            for feature in geojson_bacia['features']:
+                geometry = feature.get('geometry', {})
+                if geometry.get('type') == 'Polygon':
+                    coords.extend(geometry['coordinates'][0])
+                elif geometry.get('type') == 'MultiPolygon':
+                    for polygon in geometry['coordinates']:
+                        coords.extend(polygon[0])
+            
+            if coords:
+                lats = [coord[1] for coord in coords]
+                lons = [coord[0] for coord in coords]
+                center_lat = sum(lats) / len(lats)
+                center_lon = sum(lons) / len(lons)
+                mapa_center = [center_lat, center_lon]
+            else:
+                mapa_center = [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()] if not df_mapa.empty else [-5.2, -39.3]
+        except Exception as e:
+            st.warning(f"Não foi possível calcular o centro da bacia: {str(e)}")
+            mapa_center = [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()] if not df_mapa.empty else [-5.2, -39.3]
     else:
         mapa_center = [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()] if not df_mapa.empty else [-5.2, -39.3]
 
@@ -260,5 +275,6 @@ def render_acudes():
             st.download_button(label="Baixar dados completos (CSV)", data=df_filtrado.drop(columns=["Cor", "Status", "TextColor"]).to_csv(index=False, encoding="utf-8-sig", sep=";"), file_name=f"reservatorios_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
     else:
         st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.", icon="⚠️")
+
 
 
