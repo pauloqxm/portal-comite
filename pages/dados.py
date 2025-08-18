@@ -110,7 +110,7 @@ def render_dados():
 
 
 # ===================== Mapa dos Açudes (com camadas e base segura) =====================
-    
+
     st.subheader("🌍 Mapa dos Açudes")
     with st.expander("Configurações do Mapa", expanded=False):
         tile_option = st.selectbox(
@@ -137,36 +137,9 @@ def render_dados():
     }
     
     if 'Coordenadas' in dff.columns:
-        # Função para calcular o centro da bacia
-        def calculate_basin_center(geojson_bacia):
-            if not geojson_bacia or 'features' not in geojson_bacia:
-                return [dff['Latitude'].mean(), dff['Longitude'].mean()]
-            
-            # Extrai todas as coordenadas da bacia
-            all_coords = []
-            for feature in geojson_bacia['features']:
-                if feature['geometry']['type'] == 'MultiPolygon':
-                    for polygon in feature['geometry']['coordinates']:
-                        for ring in polygon:
-                            all_coords.extend(ring)
-                elif feature['geometry']['type'] == 'Polygon':
-                    for ring in feature['geometry']['coordinates']:
-                        all_coords.extend(ring)
-            
-            # Converte para array numpy para cálculo eficiente
-            coords_array = np.array(all_coords)
-            lons = coords_array[:, 0]
-            lats = coords_array[:, 1]
-            
-            return [np.mean(lats), np.mean(lons)]
-    
-        # Calcula o centro do mapa baseado na bacia ou nos açudes
-        if geojson_bacia:
-            map_center = calculate_basin_center(geojson_bacia)
-        else:
-            map_center = [dff['Latitude'].mean(), dff['Longitude'].mean()]
-        
-        m = folium.Map(location=map_center, zoom_start=9, tiles=None)
+        center_lat = dff['Latitude'].mean()
+        center_lon = dff['Longitude'].mean()
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=9, tiles=None)
         
         # Adiciona o tile layer selecionado
         folium.TileLayer(
@@ -288,6 +261,8 @@ def render_dados():
                 if 'classificacoes_presentes' in st.session_state:
                     st.write("Classificações encontradas:", st.session_state.classificacoes_presentes)
     
+            
+    
         # --- MARCADORES DOS AÇUDES ---
         for _, row in dff.iterrows():
             classificacao = row.get('Classificação', 'Sem classificação')
@@ -353,7 +328,7 @@ def render_dados():
         folium.LayerControl().add_to(m)
         
         # --- EXIBIÇÃO DO MAPA ---
-        folium_static(m, width=None, height=600)
+        folium_static(m, width=1000, height=600)
     else:
         st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
     
@@ -604,22 +579,3 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
