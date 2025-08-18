@@ -134,9 +134,11 @@ def render_dados():
 
     dff = dff.sort_values(["Açude", "Data"])
 
-    # ===================== Mapa dos Açudes (com camadas, filtros integrados e base segura) =====================
-    st.subheader("🌍 Mapa dos Açudes")
+    # ===================== Mapa dos Açudes =====================
+ 
 
+    st.subheader("🌍 Mapa dos Açudes")
+    
     with st.expander("Configurações do Mapa", expanded=False):
         tile_option = st.selectbox(
             "Estilo do Mapa:",
@@ -144,11 +146,11 @@ def render_dados():
             index=0,
             key='map_style_select'
         )
-
+    
     # GeoJSONs adicionais já carregados
     geojson_bacia = geojson_data.get('geojson_bacia', {})
     geojson_sedes = geojson_data.get('geojson_sedes', {})
-
+    
     # Tiles
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
@@ -158,25 +160,25 @@ def render_dados():
         "Esri Satellite": {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
         "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
     }
-
+    
     # Base segura para o mapa
     try:
         df_base = df_filtrado.copy()
     except NameError:
         df_base = dff.copy() if 'dff' in locals() else pd.DataFrame()
-
+    
     if not df_base.empty and 'Coordenadas' in df_base.columns:
         if not {'Latitude', 'Longitude'}.issubset(df_base.columns):
             latlon = df_base['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
             if latlon.shape[1] == 2:
                 df_base['Latitude']  = pd.to_numeric(latlon[0], errors='coerce')
                 df_base['Longitude'] = pd.to_numeric(latlon[1], errors='coerce')
-
+    
     if not df_base.empty and {'Latitude', 'Longitude'}.issubset(df_base.columns):
         start_center = [float(df_base['Latitude'].mean()), float(df_base['Longitude'].mean())]
     else:
         start_center = [-5.2, -39.5]
-
+    
     # Inicializa o mapa
     m = folium.Map(location=start_center, zoom_start=9, tiles=None)
     folium.TileLayer(
@@ -184,7 +186,7 @@ def render_dados():
         attr=tile_config[tile_option]["attr"],
         name=tile_option
     ).add_to(m)
-
+    
     # Cores por classificação
     def get_classification_color(props: dict) -> str:
         keys = ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']
@@ -217,7 +219,7 @@ def render_dados():
             if k.lower() == low:
                 return v
         return "#999999"
-
+    
     def style_function(feature):
         props = feature.get('properties', {})
         return {
@@ -227,7 +229,7 @@ def render_dados():
             'fillOpacity': 0.7,
             'opacity': 0.9
         }
-
+    
     # Bacia do Banabuiú + fit_bounds
     if geojson_bacia:
         gj_bacia = folium.GeoJson(
@@ -236,7 +238,7 @@ def render_dados():
             style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.1},
             tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])
         ).add_to(m)
-
+    
         # Enquadra o mapa pela bacia
         try:
             coords_all = []
@@ -263,7 +265,7 @@ def render_dados():
                 m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
         except Exception as e:
             st.warning(f"Não foi possível centralizar pela bacia: {e}")
-
+    
     # Sedes Municipais
     if geojson_sedes and isinstance(geojson_sedes, dict) and "features" in geojson_sedes:
         sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=False)
@@ -286,14 +288,14 @@ def render_dados():
                 except Exception:
                     continue
         sedes_layer.add_to(m)
-
+    
     # Helpers para filtrar GeoJSON pela Classificação selecionada
     def _get_classificacao_from_props(props: dict):
         for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
             if k in (props or {}) and pd.notna(props[k]):
                 return str(props[k]).strip()
         return None
-
+    
     def filtrar_geojson_por_classificacao(geojson_fc: dict, classes_sel):
         if not geojson_fc or geojson_fc.get('type') != 'FeatureCollection':
             return {}
@@ -308,7 +310,7 @@ def render_dados():
                 if cls.lower() in sel_lower:
                     feats.append(f)
         return {'type': 'FeatureCollection', 'features': feats} if feats else {}
-
+    
     # Situação da Bacia (filtrada pelos filtros)
     geojson_situa_filtrado = filtrar_geojson_por_classificacao(geojson_situa, classificacao_sel)
     if geojson_situa_filtrado:
@@ -322,7 +324,7 @@ def render_dados():
                     break
             if campo_tooltip is None:
                 campo_tooltip = 'Classificação'
-
+    
             folium.GeoJson(
                 geojson_situa_filtrado,
                 style_function=style_function,
@@ -333,13 +335,13 @@ def render_dados():
                     style="font-weight: bold;"
                 )
             ).add_to(situa_group)
-
+    
             situa_group.add_to(m)
         except Exception as e:
             st.error(f"Erro ao processar a camada de Situação: {e}")
     else:
         st.info("Nenhuma área da camada 'Situação da Bacia' corresponde à Classificação selecionada.")
-
+    
     # Marcadores dos Açudes (já filtrados em dff)
     if not df_base.empty and {'Latitude', 'Longitude'}.issubset(df_base.columns):
         for _, row in df_base.iterrows():
@@ -370,47 +372,88 @@ def render_dados():
                 tooltip=row.get('Açude', 'N/A'),
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
-
+    
     # Plugins e controles
     Fullscreen().add_to(m)
     MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
-
-    # Render do Mapa
-    folium_static(m, width=1000, height=600)
-
-    # Legenda dinâmica conforme seleção
-    _color_by_label = {
-        "Criticidade Alta":  "#E24F42",
-        "Criticidade Média": "#ECC116",
-        "Criticidade Baixa": "#F4FA4A",
-        "Fora de Criticidade": "#8DCC90",
-        "Sem classificação":  "#999999",
-    }
-    _ordem_legenda = ["Criticidade Alta", "Criticidade Média", "Criticidade Baixa", "Fora de Criticidade", "Sem classificação"]
-    sel_set = set(classificacao_sel or _ordem_legenda)
-    itens = []
-    for label in _ordem_legenda:
-        if label in sel_set:
-            cor = _color_by_label[label]
-            itens.append(f'''
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: {cor};"></div>
-                    <span class="legend-label">{label}</span>
+    
+    # Container para o mapa e legenda
+    map_container = st.container()
+    with map_container:
+        # Render do Mapa
+        folium_static(m, width=1000, height=600)
+        
+        # Legenda Fixa na Parte Inferior
+        st.markdown("""
+        <style>
+        .map-legend-container {
+            position: relative;
+            margin-top: -40px;
+            margin-bottom: 20px;
+            z-index: 1000;
+        }
+        .map-legend {
+            background: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            border: 1px solid #eee;
+            display: inline-block;
+            margin: 0 auto;
+        }
+        .legend-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+        .legend-color {
+            width: 18px;
+            height: 18px;
+            margin-right: 8px;
+            border: 1px solid #555;
+            border-radius: 3px;
+        }
+        .legend-label {
+            font-size: 13px;
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
+        </style>
+        
+        <div class="map-legend-container">
+            <div class="map-legend">
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #E24F42;"></div>
+                        <span class="legend-label">Criticidade Alta</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ECC116;"></div>
+                        <span class="legend-label">Criticidade Média</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #F4FA4A;"></div>
+                        <span class="legend-label">Criticidade Baixa</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #8DCC90;"></div>
+                        <span class="legend-label">Fora de Criticidade</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #999999;"></div>
+                        <span class="legend-label">Sem classificação</span>
+                    </div>
                 </div>
-            ''')
-    legend_html = f"""
-    <style>
-    .legend-container {{ display:flex; justify-content:center; margin:10px 0; flex-wrap:wrap; gap:15px; }}
-    .legend-item {{ display:flex; align-items:center; margin:5px 0; }}
-    .legend-color {{ width:20px; height:20px; margin-right:8px; border:1px solid #555; border-radius:3px; }}
-    .legend-label {{ font-size:14px; font-family: Arial, sans-serif; color:#333; }}
-    </style>
-    <div class="legend-container">
-        {''.join(itens)}
-    </div>
-    """
-    st.markdown(legend_html, unsafe_allow_html=True)
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 
     # ===================== KPIs =====================
     st.markdown("---")
@@ -613,4 +656,5 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
