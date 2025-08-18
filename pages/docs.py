@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from html import escape
 from utils.common import load_docs_data
 
 def render_docs():
@@ -170,3 +171,4 @@ def render_docs():
 
     table_html += "</tbody></table></div>"
     st.markdown(table_html, unsafe_allow_html=True)
+
