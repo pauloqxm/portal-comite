@@ -112,7 +112,6 @@ def render_dados():
 
 # ===================== Mapa dos Açudes (com camadas e base segura) =====================
     
-    
     st.subheader("🌍 Mapa dos Açudes")
     
     with st.expander("Configurações do Mapa", expanded=False):
@@ -348,35 +347,67 @@ def render_dados():
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
     
-    # ---------------- Legenda (position: absolute para garantir render no Streamlit) ----------------
-    legend_html = '''
-    <div style="
-        position: absolute; 
-        bottom: 30px; left: 30px; width: 200px; 
-        border:2px solid grey; z-index:9999; 
-        font-size:13px; background:white;
-        padding: 10px; font-family: Arial, sans-serif; box-shadow:2px 2px 6px rgba(0,0,0,0.3);">
-        <p style="margin:0 0 8px 0; padding:0; font-weight:bold; border-bottom:1px solid #ddd; color:#2c3e50;">
-            Legenda
-        </p>
-        <div style="margin:4px 0;"><span style="display:inline-block;width:20px;height:20px;background:#E24F42;border:1px solid #555;margin-right:6px;"></span>Criticidade Alta</div>
-        <div style="margin:4px 0;"><span style="display:inline-block;width:20px;height:20px;background:#ECC116;border:1px solid #555;margin-right:6px;"></span>Criticidade Média</div>
-        <div style="margin:4px 0;"><span style="display:inline-block;width:20px;height:20px;background:#F4FA4A;border:1px solid #555;margin-right:6px;"></span>Criticidade Baixa</div>
-        <div style="margin:4px 0;"><span style="display:inline-block;width:20px;height:20px;background:#8DCC90;border:1px solid #555;margin-right:6px;"></span>Fora de Criticidade</div>
-        <div style="margin:4px 0;"><span style="display:inline-block;width:20px;height:20px;background:#999999;border:1px solid #555;margin-right:6px;"></span>Sem classificação</div>
-    </div>
-    '''
-    m.get_root().html.add_child(folium.Element(legend_html))
-    
     # ---------------- Plugins e controles ----------------
     Fullscreen().add_to(m)
     MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
     
-    # ---------------- Render ----------------
+    # ---------------- Render do Mapa ----------------
     folium_static(m, width=1000, height=600)
-
     
+    # ---------------- LEGENDA FIXA ABAIXO DO MAPA ----------------
+    st.markdown("""
+    <style>
+    .legend-container {
+        display: flex;
+        justify-content: center;
+        margin: 10px 0;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin: 5px 0;
+    }
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        margin-right: 8px;
+        border: 1px solid #555;
+        border-radius: 3px;
+    }
+    .legend-label {
+        font-size: 14px;
+        font-family: Arial, sans-serif;
+        color: #333;
+    }
+    </style>
+    
+    <div class="legend-container">
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #E24F42;"></div>
+            <span class="legend-label">Criticidade Alta</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #ECC116;"></div>
+            <span class="legend-label">Criticidade Média</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #F4FA4A;"></div>
+            <span class="legend-label">Criticidade Baixa</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #8DCC90;"></div>
+            <span class="legend-label">Fora de Criticidade</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #999999;"></div>
+            <span class="legend-label">Sem classificação</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
         
 # --- FIM DO BLOCO DO MAPA ---
     
@@ -624,4 +655,5 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
