@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import folium
+import json
 from streamlit_folium import folium_static
 from folium.plugins import Fullscreen, MousePosition
 from utils.common import load_geojson_data
@@ -110,8 +111,10 @@ def render_dados():
 
 
 # ===================== Mapa dos Açudes (com camadas e base segura) =====================
-
+    
+    
     st.subheader("🌍 Mapa dos Açudes")
+    
     with st.expander("Configurações do Mapa", expanded=False):
         tile_option = st.selectbox(
             "Estilo do Mapa:",
@@ -120,13 +123,13 @@ def render_dados():
             key='map_style_select'
         )
     
-    # Carrega os dados GeoJSON
-    geojson_data = load_geojson_data()
+    # ---------------- Carrega GeoJSONs ----------------
+    geojson_data  = load_geojson_data()
     geojson_situa = geojson_data.get('geojson_situa', {})
     geojson_bacia = geojson_data.get('geojson_bacia', {})
     geojson_sedes = geojson_data.get('geojson_sedes', {})
-        
-    # Configurações dos tiles
+    
+    # ---------------- Tiles ----------------
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
         "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
@@ -136,138 +139,193 @@ def render_dados():
         "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
     }
     
-    if 'Coordenadas' in dff.columns:
-        center_lat = dff['Latitude'].mean()
-        center_lon = dff['Longitude'].mean()
-        m = folium.Map(location=[center_lat, center_lon], zoom_start=9, tiles=None)
-        
-        # Adiciona o tile layer selecionado
-        folium.TileLayer(
-            tiles=tile_config[tile_option]["tiles"], 
-            attr=tile_config[tile_option]["attr"], 
-            name=tile_option
-        ).add_to(m)
+    # ---------------- Base segura para o mapa (substitui df_filtrado) ----------------
+    try:
+        df_base = df_filtrado.copy()  # usa o filtrado se existir
+    except NameError:
+        df_base = dff.copy() if 'dff' in locals() else pd.DataFrame()
     
-        # --- FUNÇÕES DE ESTILO ---
-        def get_classification_color(props):
-            classificacao_keys = ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']
-            classificacao = None
-            
-            for key in classificacao_keys:
-                if key in props:
-                    classificacao = str(props[key]).strip()
-                    break
-            
-            if classificacao is None:
-                return "#999999"
-            
-            color_map = {
-                "Criticidade Alta": "#E24F42",
-                "criticidade alta": "#E24F42",
-                "Alta": "#E24F42",
-                "Criticidade Média": "#ECC116",
-                "criticidade média": "#ECC116",
-                "Média": "#ECC116",
-                "Criticidade Baixa": "#F4FA4A",
-                "criticidade baixa": "#F4FA4A",
-                "Baixa": "#F4FA4A",
-                "Fora de Criticidade": "#8DCC90",
-                "fora de criticidade": "#8DCC90",
-                "Fora criticidade": "#8DCC90",
-                "fora criticidade": "#8DCC90",
-                "Normal": "#8DCC90",
-                "Sem classificação": "#999999"
-            }
-            
-            for key in color_map:
-                if key.lower() == classificacao.lower():
-                    return color_map[key]
-            
+    # Se só existir "Coordenadas" (ex: "lat,lon"), cria Latitude/Longitude
+    if not df_base.empty and 'Coordenadas' in df_base.columns:
+        if not {'Latitude', 'Longitude'}.issubset(df_base.columns):
+            latlon = df_base['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
+            if latlon.shape[1] == 2:
+                # ajuste a ordem caso suas coordenadas estejam como "lon,lat"
+                df_base['Latitude']  = pd.to_numeric(latlon[0], errors='coerce')
+                df_base['Longitude'] = pd.to_numeric(latlon[1], errors='coerce')
+    
+    # Centro inicial (fallback: centro aproximado do CE)
+    if not df_base.empty and {'Latitude', 'Longitude'}.issubset(df_base.columns):
+        start_center = [float(df_base['Latitude'].mean()), float(df_base['Longitude'].mean())]
+    else:
+        start_center = [-5.2, -39.5]
+    
+    # ---------------- Inicializa o mapa ----------------
+    m = folium.Map(location=start_center, zoom_start=9, tiles=None)
+    folium.TileLayer(
+        tiles=tile_config[tile_option]["tiles"],
+        attr=tile_config[tile_option]["attr"],
+        name=tile_option
+    ).add_to(m)
+    
+    # ---------------- Funções de cor e estilo ----------------
+    def get_classification_color(props: dict) -> str:
+        keys = ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']
+        classificacao = None
+        for k in keys:
+            if k in props:
+                classificacao = str(props[k]).strip()
+                break
+        if not classificacao:
             return "#999999"
     
-        def style_function(feature):
-            return {
-                'fillColor': get_classification_color(feature.get('properties', {})),
-                'color': '#555555',
-                'weight': 1.5,
-                'fillOpacity': 0.7,
-                'opacity': 0.9
-            }
+        color_map = {
+            # Criticidade Alta
+            "Criticidade Alta": "#E24F42",
+            "criticidade alta": "#E24F42",
+            "Alta": "#E24F42",
     
-        # --- CAMADA DA BACIA DO BANABUIÚ ---
-        if geojson_bacia:
-            folium.GeoJson(
-                geojson_bacia,
-                name="Bacia do Banabuiú",
-                style_function=lambda x: {
-                    "color": "blue",
-                    "weight": 2,
-                    "fillOpacity": 0.1
-                },
-                tooltip=folium.GeoJsonTooltip(
-                    fields=["DESCRICA1"],
-                    aliases=["Bacia:"]
-                )
-            ).add_to(m)
+            # Criticidade Média
+            "Criticidade Média": "#ECC116",
+            "criticidade média": "#ECC116",
+            "Média": "#ECC116",
     
-        # --- CAMADA DAS SEDES MUNICIPAIS ---
-        if geojson_sedes:
-            sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=False)
-            for feature in geojson_sedes["features"]:
-                props = feature["properties"]
-                coords = feature["geometry"]["coordinates"]
+            # Criticidade Baixa
+            "Criticidade Baixa": "#F4FA4A",
+            "criticidade baixa": "#F4FA4A",
+            "Baixa": "#F4FA4A",
+    
+            # Fora de Criticidade
+            "Fora de Criticidade": "#8DCC90",
+            "fora de criticidade": "#8DCC90",
+            "Fora criticidade": "#8DCC90",
+            "fora criticidade": "#8DCC90",
+            "Normal": "#8DCC90",
+    
+            # Sem classificação
+            "Sem classificação": "#999999"
+        }
+        low = classificacao.lower()
+        for k, v in color_map.items():
+            if k.lower() == low:
+                return v
+        return "#999999"
+    
+    def style_function(feature):
+        props = feature.get('properties', {})
+        return {
+            'fillColor': get_classification_color(props),
+            'color': '#555555',
+            'weight': 1.5,
+            'fillOpacity': 0.7,
+            'opacity': 0.9
+        }
+    
+    # ---------------- Camada: Bacia do Banabuiú + centralização por fit_bounds ----------------
+    if geojson_bacia:
+        gj_bacia = folium.GeoJson(
+            geojson_bacia,
+            name="Bacia do Banabuiú",
+            style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.1},
+            tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])
+        ).add_to(m)
+    
+        # Calcula bounding box e ajusta o mapa
+        try:
+            coords_all = []
+            feats = geojson_bacia.get("features", [])
+            for feature in feats:
+                geom = feature.get("geometry", {})
+                gtype = geom.get("type")
+                gcoords = geom.get("coordinates", [])
+    
+                if gtype == "Polygon":
+                    # lista de aneis; pegamos o anel externo
+                    for ring in gcoords:
+                        coords_all.extend(ring)  # [[lon, lat], ...]
+                elif gtype == "MultiPolygon":
+                    for poly in gcoords:
+                        for ring in poly:
+                            coords_all.extend(ring)
+                elif gtype == "Point":
+                    coords_all.append(gcoords)  # [lon, lat]
+                elif gtype == "MultiPoint" or gtype == "LineString" or gtype == "MultiLineString":
+                    # cobre casos incomuns
+                    for c in gcoords:
+                        if isinstance(c, (list, tuple)) and len(c) >= 2:
+                            coords_all.append(c)
+    
+            if coords_all:
+                lons, lats = zip(*coords_all)
+                m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+        except Exception as e:
+            st.warning(f"Não foi possível centralizar pela bacia: {e}")
+    
+    # ---------------- Camada: Sedes Municipais ----------------
+    if geojson_sedes and isinstance(geojson_sedes, dict) and "features" in geojson_sedes:
+        sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=False)
+        for feature in geojson_sedes["features"]:
+            props  = feature.get("properties", {})
+            geom   = feature.get("geometry", {})
+            coords = geom.get("coordinates", [])
+            if geom.get("type") == "Point" and isinstance(coords, (list, tuple)) and len(coords) >= 2:
                 nome = props.get("NOME_MUNIC", "Sem nome")
-                folium.Marker(
-                    [coords[1], coords[0]],
-                    icon=folium.CustomIcon(
-                        "https://cdn-icons-png.flaticon.com/512/854/854878.png",
-                        icon_size=(25, 25)
-                    ),
-                    tooltip=nome
-                ).add_to(sedes_layer)
-            sedes_layer.add_to(m)
+                try:
+                    lat, lon = float(coords[1]), float(coords[0])  # GeoJSON: [lon, lat]
+                    folium.Marker(
+                        [lat, lon],
+                        icon=folium.CustomIcon(
+                            "https://cdn-icons-png.flaticon.com/512/854/854878.png",
+                            icon_size=(25, 25)
+                        ),
+                        tooltip=nome
+                    ).add_to(sedes_layer)
+                except Exception:
+                    continue
+        sedes_layer.add_to(m)
     
-        # --- CAMADA PRINCIPAL (SITUAÇÃO DA BACIA) ---
-        if geojson_situa and geojson_situa.get('type') == 'FeatureCollection':
+    # ---------------- Camada: Situação da Bacia ----------------
+    if geojson_situa and geojson_situa.get('type') == 'FeatureCollection':
+        try:
+            situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
+    
+            # Campo de classificação disponível
+            possiveis = ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']
+            campo_tooltip = None
+            for cand in possiveis:
+                if any(cand in (f.get('properties') or {}) for f in geojson_situa.get('features', [])):
+                    campo_tooltip = cand
+                    break
+            if campo_tooltip is None:
+                campo_tooltip = 'Classificação'  # fallback
+    
+            folium.GeoJson(
+                geojson_situa,
+                style_function=style_function,
+                tooltip=folium.GeoJsonTooltip(
+                    fields=[campo_tooltip],
+                    aliases=['Classificação:'],
+                    sticky=True,
+                    style="font-weight: bold;"
+                )
+            ).add_to(situa_group)
+    
+            situa_group.add_to(m)
+        except Exception as e:
+            st.error(f"Erro ao processar a camada de Situação: {e}")
+    
+    # ---------------- Marcadores dos Açudes (df_base) ----------------
+    if not df_base.empty and {'Latitude', 'Longitude'}.issubset(df_base.columns):
+        for _, row in df_base.iterrows():
             try:
-                situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
-                
-                # Verificação das classificações presentes
-                classificacoes_presentes = set()
-                for feature in geojson_situa.get('features', []):
-                    props = feature.get('properties', {})
-                    for key in ['Classificação', 'classificacao', 'CLASSIFICACAO']:
-                        if key in props:
-                            classificacoes_presentes.add(props[key])
-                
-                if classificacoes_presentes:
-                    st.session_state.classificacoes_presentes = classificacoes_presentes
-                
-                folium.GeoJson(
-                    geojson_situa,
-                    style_function=style_function,
-                    tooltip=folium.GeoJsonTooltip(
-                        fields=['Classificação'],
-                        aliases=['Classificação:'],
-                        sticky=True,
-                        style=("font-weight: bold;")
-                    )
-                ).add_to(situa_group)
-                
-                situa_group.add_to(m)
-                
-            except Exception as e:
-                st.error(f"Erro ao processar GeoJSON: {str(e)}")
-                if 'classificacoes_presentes' in st.session_state:
-                    st.write("Classificações encontradas:", st.session_state.classificacoes_presentes)
+                lat = float(row['Latitude'])
+                lon = float(row['Longitude'])
+            except Exception:
+                continue
     
-            
-    
-        # --- MARCADORES DOS AÇUDES ---
-        for _, row in dff.iterrows():
             classificacao = row.get('Classificação', 'Sem classificação')
             color_marker = get_classification_color({'Classificação': classificacao})
-            
+    
             popup_html = f"""
             <div style="font-family: Arial, sans-serif; font-size: 14px;">
                 <h4 style="margin:0; padding:0; color: #2c3e50;">{row.get('Açude', 'N/A')}</h4>
@@ -278,9 +336,9 @@ def render_dados():
                 <p><b>Classificação:</b> <span style="color: {color_marker}; font-weight: bold;">{classificacao}</span></p>
             </div>
             """
-            
+    
             folium.CircleMarker(
-                location=[row['Latitude'], row['Longitude']],
+                location=[lat, lon],
                 radius=6,
                 color=color_marker,
                 fill=True,
@@ -290,47 +348,34 @@ def render_dados():
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
     
-        # --- LEGENDA ---
-        legend_html = '''
-        <div style="position: fixed; 
-                    bottom: 50px; left: 50px; width: 180px; 
-                    border:2px solid grey; z-index:9999; 
-                    font-size:14px; background:white;
-                    padding: 10px; font-family: Arial, sans-serif;">
-            <p style="margin:0 0 10px 0; padding:0; font-weight:bold; border-bottom:1px solid #eee; color: #2c3e50;">Legenda:</p>
-            <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#E24F42; margin-right:5px; border:1px solid #555;"></div>
-                <span>Criticidade Alta</span>
-            </div>
-            <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#ECC116; margin-right:5px; border:1px solid #555;"></div>
-                <span>Criticidade Média</span>
-            </div>
-            <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#F4FA4A; margin-right:5px; border:1px solid #555;"></div>
-                <span>Criticidade Baixa</span>
-            </div>
-            <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#8DCC90; margin-right:5px; border:1px solid #555;"></div>
-                <span>Fora de Criticidade</span>
-            </div>
-            <div style="display: flex; align-items: center; margin: 5px 0;">
-                <div style="width:20px; height:20px; background:#999999; margin-right:5px; border:1px solid #555;"></div>
-                <span>Sem classificação</span>
-            </div>
-        </div>
-        '''
-        m.get_root().html.add_child(folium.Element(legend_html))
+    # ---------------- Legenda (position: absolute para garantir render no Streamlit) ----------------
+    legend_html = '''
+    <div style="
+        position: absolute; 
+        bottom: 30px; left: 30px; width: 200px; 
+        border:2px solid grey; z-index:9999; 
+        font-size:13px; background:white;
+        padding: 10px; font-family: Arial, sans-serif; box-shadow:2px 2px 6px rgba(0,0,0,0.3);">
+        <p style="margin:0 0 8px 0; padding:0; font-weight:bold; border-bottom:1px solid #ddd; color:#2c3e50;">
+            Legenda
+        </p>
+        <div style="margin:4px 0;"><span style="display:inline-block;width:20px;height:20px;background:#E24F42;border:1px solid #555;margin-right:6px;"></span>Criticidade Alta</div>
+        <div style="margin:4px 0;"><span style="display:inline-block;width:20px;height:20px;background:#ECC116;border:1px solid #555;margin-right:6px;"></span>Criticidade Média</div>
+        <div style="margin:4px 0;"><span style="display:inline-block;width:20px;height:20px;background:#F4FA4A;border:1px solid #555;margin-right:6px;"></span>Criticidade Baixa</div>
+        <div style="margin:4px 0;"><span style="display:inline-block;width:20px;height:20px;background:#8DCC90;border:1px solid #555;margin-right:6px;"></span>Fora de Criticidade</div>
+        <div style="margin:4px 0;"><span style="display:inline-block;width:20px;height:20px;background:#999999;border:1px solid #555;margin-right:6px;"></span>Sem classificação</div>
+    </div>
+    '''
+    m.get_root().html.add_child(folium.Element(legend_html))
     
-        # --- PLUGINS ADICIONAIS ---
-        Fullscreen().add_to(m)
-        MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
-        folium.LayerControl().add_to(m)
-        
-        # --- EXIBIÇÃO DO MAPA ---
-        folium_static(m, width=1000, height=600)
-    else:
-        st.info("Mapa não disponível devido à falta da coluna 'Coordenadas'.")
+    # ---------------- Plugins e controles ----------------
+    Fullscreen().add_to(m)
+    MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
+    folium.LayerControl(collapsed=False).add_to(m)
+    
+    # ---------------- Render ----------------
+    folium_static(m, width=1000, height=600)
+
     
         
 # --- FIM DO BLOCO DO MAPA ---
@@ -579,3 +624,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
