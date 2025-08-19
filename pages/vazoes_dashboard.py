@@ -169,6 +169,17 @@ def render_vazoes_dashboard():
                                   f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
                 ))
 
+    # Configuração para colocar a legenda na parte inferior
+    fig.update_layout(
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.3,
+            xanchor="center",
+            x=0.5
+        )
+    )
+
     st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_evolucao")
 
 
@@ -369,6 +380,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
