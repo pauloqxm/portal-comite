@@ -276,12 +276,20 @@ def render_vazoes_dashboard():
         st.info("Sem dados suficientes para o gráfico de volume.") 
 
 # ------------- Média por reservatório -------------
-    st.subheader("🏞️ Vazão Operada por mês, em l/s)")
+    st.subheader("🏞️ Média da Vazão Operada por Reservatório — barras empilhadas (horizontal por mês, em l/s)")
 
     if not df_filtrado.empty:
         df = df_filtrado.copy()
         df["Vazão Operada"] = pd.to_numeric(df.get("Vazão Operada", 0), errors="coerce").fillna(0)
 
+        # Toggle para conversão
+        conv_m3s = st.checkbox(
+            "Dados originais em m³/s? Converter para l/s",
+            value=False,
+            help="Se marcado, multiplico por 1000 para converter m³/s → l/s."
+        )
+
+        # Mês (Jan–Dez)
         if "Data" in df.columns:
             df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
             df["Mês"] = df["Data"].dt.month
@@ -290,23 +298,27 @@ def render_vazoes_dashboard():
         else:
             df["Mês"] = "Total"
 
-        # Média por reservatório e mês (m³/s)
+        # Média por reservatório e mês (base na unidade original)
         media_vazao = (
             df.groupby(["Reservatório Monitorado", "Mês"], dropna=True)["Vazão Operada"]
               .mean()
               .reset_index()
         )
 
-        # Converte para l/s
-        media_vazao["Vazão (l/s)"] = media_vazao["Vazão Operada"] * 1000.0
+        # Converte se necessário para l/s
+        fator = 1000 if conv_m3s else 1
+        media_vazao["Vazão (l/s)"] = media_vazao["Vazão Operada"] * fator
 
-        # Formatação personalizada: usa ponto para milhar e ponto para decimal (ex.: 1.000.00)
-        def format_ls(val):
+        # Formatação:
+        # - < 1000 l/s => 3 decimais (ex: 2.739 l/s)
+        # - >= 1000 l/s => 2 decimais com milhar em ponto (ex: 1.500.00 l/s)
+        def format_ls(val: float) -> str:
             if pd.isna(val):
                 return "— l/s"
-            # formata como 1,234.56 e troca vírgula por ponto -> 1.234.56
-            s = f"{val:,.2f}".replace(",", ".")
-            return f"{s} l/s"
+            if abs(val) < 1000:
+                return f"{val:.3f} l/s"
+            else:
+                return f"{val:,.2f}".replace(",", ".") + " l/s"
 
         media_vazao["Vazão Formatada"] = media_vazao["Vazão (l/s)"].apply(format_ls)
 
@@ -318,7 +330,7 @@ def render_vazoes_dashboard():
             .index.tolist()
         )
 
-        # Gráfico horizontal empilhado por mês (sem barra de total)
+        # Gráfico horizontal empilhado por mês (sem “Média Geral”)
         fig = px.bar(
             media_vazao,
             y="Reservatório Monitorado",
@@ -337,8 +349,8 @@ def render_vazoes_dashboard():
             },
             barmode="stack",
             hover_data={
-                "Vazão (l/s)": False,
-                "Vazão Formatada": True
+                "Vazão (l/s)": False,      # esconde o valor cru
+                "Vazão Formatada": True    # mostra com unidade
             }
         )
 
@@ -347,7 +359,6 @@ def render_vazoes_dashboard():
             insidetextanchor="middle",
             cliponaxis=False
         )
-
         fig.update_layout(
             bargap=0.2,
             legend_title_text="Mês",
@@ -358,10 +369,10 @@ def render_vazoes_dashboard():
         st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_media_res_mes_ls")
     else:
         st.info("Sem dados para a média.")
-
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
