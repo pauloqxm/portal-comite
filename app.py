@@ -9,7 +9,7 @@ from utils.common import render_header, render_footer
 st.set_page_config(
     page_title="Comitê Transparente",
     page_icon="📊",
-    layout="wide"
+    layout="wide",
     initial_sidebar_state="collapsed"
 )
 # ----------------- BARRA FIXA (HEADER) ------------
@@ -41,6 +41,7 @@ with tab6:
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
 
 
