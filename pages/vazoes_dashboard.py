@@ -282,13 +282,6 @@ def render_vazoes_dashboard():
         df = df_filtrado.copy()
         df["Vazão Operada"] = pd.to_numeric(df.get("Vazão Operada", 0), errors="coerce").fillna(0)
 
-        # Toggle para conversão
-        conv_m3s = st.checkbox(
-            "Dados originais em m³/s? Converter para l/s",
-            value=False,
-            help="Se marcado, multiplico por 1000 para converter m³/s → l/s."
-        )
-
         # Mês (Jan–Dez)
         if "Data" in df.columns:
             df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
@@ -372,6 +365,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
