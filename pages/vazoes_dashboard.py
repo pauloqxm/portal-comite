@@ -276,7 +276,7 @@ def render_vazoes_dashboard():
         st.info("Sem dados suficientes para o gráfico de volume.") 
 
 # ------------- Média por reservatório -------------
-    st.subheader("🏞️ Média da Vazão Operada por Reservatório — barras empilhadas (horizontal por mês, em l/s)")
+    st.subheader("🏞️ Média da Vazão Operada por Reservatório — barras empilhadas (horizontal, em l/s)")
 
     if not df_filtrado.empty:
         df = df_filtrado.copy()
@@ -294,24 +294,36 @@ def render_vazoes_dashboard():
             df["Mês"] = "Total"
 
         # Média por reservatório e mês
-        media_vazao = (
+        media_vazao_mes = (
             df.groupby(["Reservatório Monitorado", "Mês"], dropna=True)["Vazão Operada"]
               .mean()
               .reset_index()
         )
 
-        # Converte de m³/s para l/s
-        media_vazao["Vazão (l/s)"] = (media_vazao["Vazão Operada"] * 1000).round(0).astype(int)
+        # Média geral por reservatório (independente do mês)
+        media_vazao_total = (
+            df.groupby("Reservatório Monitorado")["Vazão Operada"]
+              .mean()
+              .reset_index()
+        )
+        media_vazao_total["Mês"] = "Média Geral"
 
-        # Ordena reservatórios pelo total (soma de todos os meses)
+        # Junta as duas bases
+        media_vazao = pd.concat([media_vazao_mes, media_vazao_total], ignore_index=True)
+
+        # Converte para l/s
+        media_vazao["Vazão (l/s)"] = (media_vazao["Vazão Operada"] * 1000).round(0).astype(int)
+        media_vazao["Vazão Formatada"] = media_vazao["Vazão (l/s)"].astype(str) + " l/s"
+
+        # Ordena reservatórios
         ordem = (
             media_vazao.groupby("Reservatório Monitorado")["Vazão (l/s)"]
-            .sum()
+            .mean()
             .sort_values(ascending=True)
             .index.tolist()
         )
 
-        # Gráfico horizontal empilhado
+        # Gráfico
         fig = px.bar(
             media_vazao,
             y="Reservatório Monitorado",
@@ -319,17 +331,27 @@ def render_vazoes_dashboard():
             color="Mês",
             orientation="h",
             text="Vazão (l/s)",
-            category_orders={"Reservatório Monitorado": ordem,
-                            "Mês": ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]},
+            category_orders={
+                "Reservatório Monitorado": ordem,
+                "Mês": ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez","Média Geral"]
+            },
             labels={
                 "Reservatório Monitorado": "Reservatório",
                 "Vazão (l/s)": "Média (l/s)",
                 "Mês": "Mês"
             },
-            barmode="stack"
+            barmode="stack",
+            hover_data={
+                "Vazão (l/s)": False,
+                "Vazão Formatada": True
+            }
         )
 
-        fig.update_traces(texttemplate="%{text:,d}", textposition="inside")  # rótulos inteiros
+        fig.update_traces(
+            texttemplate="%{text} l/s",
+            textposition="inside"
+        )
+
         fig.update_layout(
             bargap=0.2,
             legend_title_text="Mês",
@@ -344,6 +366,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
