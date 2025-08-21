@@ -276,7 +276,7 @@ def render_vazoes_dashboard():
         st.info("Sem dados suficientes para o gráfico de volume.") 
 
 # ------------- Média por reservatório -------------
-    st.subheader("🏞️ Média da Vazão Operada por Reservatório — barras empilhadas (horizontal, em l/s)")
+    st.subheader("🏞️ Vazão Operada por mês, em l/s)")
 
     if not df_filtrado.empty:
         df = df_filtrado.copy()
@@ -285,55 +285,50 @@ def render_vazoes_dashboard():
         if "Data" in df.columns:
             df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
             df["Mês"] = df["Data"].dt.month
-            meses_map = {
-                1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun",
-                7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
-            }
+            meses_map = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
             df["Mês"] = df["Mês"].map(meses_map)
         else:
             df["Mês"] = "Total"
 
-        # Média por reservatório e mês
-        media_vazao_mes = (
+        # Média por reservatório e mês (m³/s)
+        media_vazao = (
             df.groupby(["Reservatório Monitorado", "Mês"], dropna=True)["Vazão Operada"]
               .mean()
               .reset_index()
         )
 
-        # Média geral por reservatório (independente do mês)
-        media_vazao_total = (
-            df.groupby("Reservatório Monitorado")["Vazão Operada"]
-              .mean()
-              .reset_index()
-        )
-        media_vazao_total["Mês"] = "Média Geral"
-
-        # Junta as duas bases
-        media_vazao = pd.concat([media_vazao_mes, media_vazao_total], ignore_index=True)
-
         # Converte para l/s
-        media_vazao["Vazão (l/s)"] = (media_vazao["Vazão Operada"] * 1000).round(0).astype(int)
-        media_vazao["Vazão Formatada"] = media_vazao["Vazão (l/s)"].astype(str) + " l/s"
+        media_vazao["Vazão (l/s)"] = media_vazao["Vazão Operada"] * 1000.0
 
-        # Ordena reservatórios
+        # Formatação personalizada: usa ponto para milhar e ponto para decimal (ex.: 1.000.00)
+        def format_ls(val):
+            if pd.isna(val):
+                return "— l/s"
+            # formata como 1,234.56 e troca vírgula por ponto -> 1.234.56
+            s = f"{val:,.2f}".replace(",", ".")
+            return f"{s} l/s"
+
+        media_vazao["Vazão Formatada"] = media_vazao["Vazão (l/s)"].apply(format_ls)
+
+        # Ordena reservatórios pelo total (soma dos meses)
         ordem = (
             media_vazao.groupby("Reservatório Monitorado")["Vazão (l/s)"]
-            .mean()
+            .sum()
             .sort_values(ascending=True)
             .index.tolist()
         )
 
-        # Gráfico
+        # Gráfico horizontal empilhado por mês (sem barra de total)
         fig = px.bar(
             media_vazao,
             y="Reservatório Monitorado",
             x="Vazão (l/s)",
             color="Mês",
             orientation="h",
-            text="Vazão (l/s)",
+            text="Vazão Formatada",
             category_orders={
                 "Reservatório Monitorado": ordem,
-                "Mês": ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez","Média Geral"]
+                "Mês": ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
             },
             labels={
                 "Reservatório Monitorado": "Reservatório",
@@ -348,8 +343,9 @@ def render_vazoes_dashboard():
         )
 
         fig.update_traces(
-            texttemplate="%{text} l/s",
-            textposition="inside"
+            textposition="inside",
+            insidetextanchor="middle",
+            cliponaxis=False
         )
 
         fig.update_layout(
@@ -366,6 +362,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
