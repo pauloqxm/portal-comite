@@ -61,7 +61,7 @@ def render_vazoes_dashboard():
             st.success("Atualizado.")
 
     # === Filtros da Página ===
-    with st.expander("☰ Filtros", expanded=False):
+    with st.expander("☰ Filtros", expanded=None):
         st.markdown('<div class="filter-card"><div class="filter-title">Opções de Filtro</div>', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
@@ -380,6 +380,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
