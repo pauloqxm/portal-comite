@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -413,7 +414,7 @@ def render_dados():
 
     folium_static(m, width=1400, height=650)
 
-    # LEGENDA NO CANTO INFERIOR ESQUERDO
+    # Legenda (igual ao seu código)
     st.markdown("""
     <style>
     .map-legend-container {
@@ -429,15 +430,13 @@ def render_dados():
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         border: 1px solid #eee;
         display: inline-block;
-        position: absolute;
-        bottom: 20px;
-        left: 20px;
-        max-width: 400px;
+        margin: 0 auto;
     }
     .legend-items {
         display: flex;
-        flex-direction: column;
-        gap: 8px;
+        flex-wrap: wrap;
+        gap: 15px;
+        justify-content: center;
     }
     .legend-item {
         display: flex;
@@ -449,45 +448,11 @@ def render_dados():
         margin-right: 8px;
         border: 1px solid #555;
         border-radius: 3px;
-        flex-shrink: 0;
     }
     .legend-label {
-        font-size: 12px;
+        font-size: 13px;
         font-family: Arial, sans-serif;
         color: #333;
-        line-height: 1.3;
-    }
-
-    /* Responsividade */
-    @media (max-width: 768px) {
-        .map-legend {
-            bottom: 10px;
-            left: 10px;
-            padding: 8px 12px;
-            max-width: 300px;
-        }
-        .legend-label {
-            font-size: 11px;
-        }
-        .legend-color {
-            width: 16px;
-            height: 16px;
-        }
-    }
-
-    @media (max-width: 480px) {
-        .map-legend {
-            bottom: 5px;
-            left: 5px;
-            padding: 6px 10px;
-            max-width: 250px;
-        }
-        .legend-label {
-            font-size: 10px;
-        }
-        .legend-items {
-            gap: 6px;
-        }
     }
     </style>
 
@@ -735,7 +700,3 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
-
-
-
-
