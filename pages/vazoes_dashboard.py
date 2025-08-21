@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -122,15 +120,22 @@ def render_vazoes_dashboard():
         unsafe_allow_html=True,
     )
 
-# === Gráficos de Vazão e Volume ===
+# =====================================================================
+# 📈 Evolução da Vazão Operada por Reservatório
+# =====================================================================
     st.subheader("📈 Evolução da Vazão Operada por Reservatório")
+
     fig = go.Figure()
     cores = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#17becf", "#e377c2"]
     reservatorios = df_filtrado["Reservatório Monitorado"].dropna().unique()
 
     for i, r in enumerate(reservatorios):
-        dfr = df_filtrado[df_filtrado["Reservatório Monitorado"] == r] \
-                .sort_values("Data").groupby("Data", as_index=False).last()
+        dfr = (
+            df_filtrado[df_filtrado["Reservatório Monitorado"] == r]
+            .sort_values("Data")
+            .groupby("Data", as_index=False)
+            .last()
+        )
 
         # Linha principal (Vazão Operada)
         y_vals, unit_suffix = convert_vazao(dfr["Vazão Operada"], unidade_sel)
@@ -142,24 +147,25 @@ def render_vazoes_dashboard():
                           f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
         ))
 
-        # Caso tenha apenas um reservatório selecionado → adicionar linhas extras
+        # Caso tenha apenas um reservatório selecionado → linhas extras
         if len(reservatorios) == 1 and len(dfr) > 1:
-            # --- Média ponderada ---
+            # Média ponderada no período com base em dias "ativos"
+            dfr = dfr.copy()
             dfr["dias_ativos"] = dfr["Data"].diff().dt.days.fillna(0)
             if not dfr.empty:
-                dfr.loc[dfr.index[-1], "dias_ativos"] = \
-                    (df_filtrado["Data"].max() - dfr["Data"].iloc[-1]).days + 1
+                dmax = df_filtrado["Data"].max()
+                dfr.loc[dfr.index[-1], "dias_ativos"] = (dmax - dfr["Data"].iloc[-1]).days + 1
 
                 media_pond = (dfr["Vazão Operada"] * dfr["dias_ativos"]).sum() / dfr["dias_ativos"].sum()
                 media_pond_conv, _ = convert_vazao(pd.Series([media_pond]), unidade_sel)
 
                 fig.add_hline(
-                    y=media_pond_conv.iloc[0], line_dash="dash", line_width=2, line_color="red",
-                    annotation_text=f"Média Ponderada: {media_pond_conv.iloc[0]:.2f} {unit_suffix}",
+                    y=float(media_pond_conv.iloc[0]), line_dash="dash", line_width=2, line_color="red",
+                    annotation_text=f"Média Ponderada {media_pond_conv.iloc[0]:.2f} {unit_suffix}",
                     annotation_position="top right"
                 )
 
-            # --- Linha Azul (Vazao_Aloc) ---
+            # Linha Azul Vazao_Aloc se existir
             if "Vazao_Aloc" in dfr.columns:
                 y_aloc, _ = convert_vazao(dfr["Vazao_Aloc"], unidade_sel)
                 fig.add_trace(go.Scatter(
@@ -169,22 +175,17 @@ def render_vazoes_dashboard():
                                   f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
                 ))
 
-    # Configuração para colocar a legenda na parte inferior
+    # Legenda na parte inferior
     fig.update_layout(
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=-0.3,
-            xanchor="center",
-            x=0.5
-        )
+        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5)
     )
 
     st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_evolucao")
 
 
-
-#==================VOLUME LIBERADO===========
+    # =====================================================================
+    # 📊 Volume acumulado por reservatório
+    # =====================================================================
     st.subheader("📊 Volume acumulado por reservatório")
 
     cols_necessarias = {"Reservatório Monitorado", "Data", "Vazão Operada"}
@@ -209,11 +210,13 @@ def render_vazoes_dashboard():
             if df_res.empty:
                 continue
 
+            # Dias entre medições (fecha último intervalo até o fim do período global)
             df_res["dias_entre_medicoes"] = df_res["Data"].diff().dt.days.fillna(0)
             ultima_data_res = df_res["Data"].iloc[-1]
             fim_periodo = fim_periodo_global if pd.notna(fim_periodo_global) else ultima_data_res
             df_res.loc[df_res.index[-1], "dias_entre_medicoes"] = max((fim_periodo - ultima_data_res).days + 1, 0)
 
+            # Se Vazão Operada está em l/s, converter para m³/s dividindo por 1000
             segundos_por_dia = 86400
             vazao_m3s = df_res["Vazão Operada"] / 1000.0
             df_res["volume_periodo_m3"] = vazao_m3s * segundos_por_dia * df_res["dias_entre_medicoes"]
@@ -225,7 +228,7 @@ def render_vazoes_dashboard():
 
         def fmt_m3(x):
             if pd.isna(x):
-                return "—"
+                return "-"
             if x >= 1_000_000:
                 return f"{x/1e6:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " mi m³"
             elif x >= 1_000:
@@ -273,106 +276,106 @@ def render_vazoes_dashboard():
         else:
             st.info("Sem dados suficientes para montar o gráfico.")
     else:
-        st.info("Sem dados suficientes para o gráfico de volume.") 
+        st.info("Sem dados suficientes para o gráfico de volume.")
 
-# ------------- Média por reservatório -------------
-    st.subheader("🏞️ Média da Vazão Operada por Reservatório — barras empilhadas (horizontal por mês, em l/s)")
+
+    # =====================================================================
+    # 🏞️ Média da Vazão Operada por reservatório — barras empilhadas horizontal (alinhado com Evolução)
+    # =====================================================================
+    st.subheader("🏞️ Média da Vazão Operada por Reservatório")
 
     if not df_filtrado.empty:
-        df = df_filtrado.copy()
-        df["Vazão Operada"] = pd.to_numeric(df.get("Vazão Operada", 0), errors="coerce").fillna(0)
+        dfm = df_filtrado.copy()
+        dfm["Data"] = pd.to_datetime(dfm["Data"], errors="coerce")
+        dfm = dfm.dropna(subset=["Data", "Reservatório Monitorado"])
 
-        # Extrai mês
-        if "Data" in df.columns:
-            df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
-            meses_map = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
-            df["Mês"] = df["Data"].dt.month.map(meses_map)
-        else:
-            df["Mês"] = "Total"
-
-        # Média por reservatório e mês (já em l/s)
-        media_vazao = (
-            df.groupby(["Reservatório Monitorado", "Mês"], dropna=True)["Vazão Operada"]
-              .mean()
-              .reset_index()
-              .rename(columns={"Vazão Operada":"Vazão (l/s)"})
+        # 1 leitura por dia por reservatório (última do dia), igual ao gráfico de Evolução
+        df_diario = (
+            dfm.sort_values("Data")
+              .groupby(["Reservatório Monitorado", "Data"], as_index=False)
+              .last()
         )
 
-        # Formatação pedida:
-        # < 1000 l/s => 3 casas decimais com ponto (ex.: 2.739 l/s)
-        # ≥ 1000 l/s => 2 casas e milhar com ponto e decimal com ponto (ex.: 1.500.00 l/s)
-        def format_ls(val: float) -> str:
-            if pd.isna(val):
-                return "— l/s"
-            if abs(val) < 1000:
-                return f"{val:.3f} l/s"
+        # Mês e ano para não misturar períodos
+        meses_map = {1:"Jan", 2:"Fev", 3:"Mar", 4:"Abr", 5:"Mai", 6:"Jun",
+                    7:"Jul", 8:"Ago", 9:"Set", 10:"Out", 11:"Nov", 12:"Dez"}
+        df_diario["Ano"] = df_diario["Data"].dt.year
+        df_diario["Mês"] = df_diario["Data"].dt.month.map(meses_map)
+        df_diario["MêsRef"] = df_diario["Mês"] + "/" + df_diario["Ano"].astype(str)
+
+        # Média mensal a partir da série diária
+        media_mensal = (
+            df_diario.groupby(["Reservatório Monitorado", "MêsRef"], dropna=True)["Vazão Operada"]
+                    .mean()
+                    .reset_index()
+        )
+
+        # Mesma unidade do gráfico de evolução
+        y_vals_media, unit_suffix_media = convert_vazao(media_mensal["Vazão Operada"], unidade_sel)
+        media_mensal["Vazão (conv)"] = y_vals_media
+
+        # Ordena reservatórios pelo total do período
+        ordem_res = (
+            media_mensal.groupby("Reservatório Monitorado")["Vazão (conv)"]
+                        .sum().sort_values(ascending=True).index.tolist()
+        )
+
+        # Ordena MêsRef cronologicamente
+        inv_meses = {v: k for k, v in meses_map.items()}
+        media_mensal["ord"] = media_mensal["MêsRef"].apply(
+            lambda s: int(s.split("/")[1]) * 100 + inv_meses[s.split("/")[0]]
+        )
+        media_mensal = media_mensal.sort_values("ord")
+        ordem_mesref = media_mensal["MêsRef"].unique().tolist()
+
+        # Rotulagem com pontos e unidade (3 casas < 1000, 2 casas >= 1000)
+        def format_val_dot(v: float, unit: str) -> str:
+            if pd.isna(v):
+                return "- " + unit
+            if abs(v) < 1000:
+                s = f"{v:.3f}"                  # 2.739
             else:
-                return f"{val:,.2f}".replace(",", ".") + " l/s"
+                s = f"{v:,.2f}".replace(",", ".")  # 1.500.00
+            return f"{s} {unit}"
 
-        media_vazao["Vazão Formatada"] = media_vazao["Vazão (l/s)"].apply(format_ls)
+        media_mensal["Valor Formatado"] = media_mensal["Vazão (conv)"].apply(lambda v: format_val_dot(v, unit_suffix_media))
 
-        # Ordena reservatórios pelo total
-        ordem = (
-            media_vazao.groupby("Reservatório Monitorado")["Vazão (l/s)"]
-            .sum()
-            .sort_values(ascending=True)
-            .index.tolist()
-        )
-
-        # Gráfico horizontal empilhado por mês
-        fig = px.bar(
-            media_vazao,
+        # Gráfico horizontal empilhado por Mês/Ano
+        fig_media = px.bar(
+            media_mensal,
             y="Reservatório Monitorado",
-            x="Vazão (l/s)",
-            color="Mês",
+            x="Vazão (conv)",
+            color="MêsRef",
             orientation="h",
-            text="Vazão Formatada",
-            category_orders={
-                "Reservatório Monitorado": ordem,
-                "Mês": ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
-            },
+            text="Valor Formatado",
+            category_orders={"Reservatório Monitorado": ordem_res, "MêsRef": ordem_mesref},
             labels={
                 "Reservatório Monitorado": "Reservatório",
-                "Vazão (l/s)": "Média (l/s)",
-                "Mês": "Mês"
+                "Vazão (conv)": f"Média ({unit_suffix_media})",
+                "MêsRef": "Mês/Ano"
             },
             barmode="stack",
             hover_data={
-                "Vazão (l/s)": False,
-                "Vazão Formatada": True
+                "Vazão (conv)": False,
+                "Valor Formatado": True
             }
         )
 
-        fig.update_traces(
-            textposition="inside",
-            insidetextanchor="middle",
-            cliponaxis=False
-        )
-        fig.update_layout(
+        fig_media.update_traces(textposition="inside", insidetextanchor="middle", cliponaxis=False)
+        fig_media.update_layout(
             bargap=0.2,
-            legend_title_text="Mês",
-            xaxis_title="Média (l/s)",
+            legend_title_text="Mês/Ano",
+            xaxis_title=f"Média ({unit_suffix_media})",
             yaxis_title="Reservatório"
         )
 
-        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_media_res_mes_ls")
+        st.plotly_chart(fig_media, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_media_res_mes_alinhado")
+
     else:
         st.info("Sem dados para a média.")
+
 
     
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
-
-
-
-
-
-
-
-
-
-
-
-
-
