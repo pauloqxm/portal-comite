@@ -5,7 +5,7 @@ from utils.common import render_header, render_footer
 
 # ---------------- CONFIG GERAL ----------------
 st.set_page_config(
-    page_title="Comitê Transparentes",
+    page_title="Comitê Transparente",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"  # Adicione esta linha
@@ -38,4 +38,5 @@ with tab6:
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
