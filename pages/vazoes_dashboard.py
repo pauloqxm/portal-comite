@@ -185,9 +185,9 @@ def render_vazoes_dashboard():
 
 
 #==================VOLUME LIBERADO===========
-    st.subheader("📊 Volume acumulado por reservatório")
+    st.subheader("📊 Volume liberador por reservatório")
 
-    cols_necessarias = {"Reservatório Monitorado", "Data", "Vazão Operada"}
+    cols_necessarias = {"Reservatório Monitorado", "Data", "Vazão Liberada"}
     tem_cols = cols_necessarias.issubset(set(df_filtrado.columns))
     tem_res = not df_filtrado.empty and df_filtrado["Reservatório Monitorado"].nunique() > 0
 
@@ -245,7 +245,7 @@ def render_vazoes_dashboard():
             base = alt.Chart(df_volumes).encode(
                 x=alt.X("Reservatório Monitorado:N", title="Reservatório", sort="-y")
             ).properties(
-                title="Volume acumulado por reservatório",
+                title="Volume liberado",
                 height=400
             ).interactive()
 
@@ -288,6 +288,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
