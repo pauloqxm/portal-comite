@@ -460,19 +460,19 @@ def render_dados():
             <div class="legend-items">
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #E24F42;"></div>
-                    <span class="legend-label">Criticidade Alta</span>
+                    <span class="legend-label">Criticidade Alta (até 12/2025)</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #ECC116;"></div>
-                    <span class="legend-label">Criticidade Média</span>
+                    <span class="legend-label">Criticidade Média (até 06/2026)</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #F4FA4A;"></div>
-                    <span class="legend-label">Criticidade Baixa</span>
+                    <span class="legend-label">Criticidade Baixa (até 12/2026)</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #8DCC90;"></div>
-                    <span class="legend-label">Fora de Criticidade</span>
+                    <span class="legend-label">Fora de Criticidade (após 12/2026)</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #999999;"></div>
@@ -699,5 +699,6 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
             }
         )
+
 
 
