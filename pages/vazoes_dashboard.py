@@ -275,19 +275,78 @@ def render_vazoes_dashboard():
     else:
         st.info("Sem dados suficientes para o gráfico de volume.") 
 
-    # ------------- Média por reservatório -------------
-    st.subheader("🏞️ Média da Vazão Operada por Reservatório")
+# ------------- Média por reservatório -------------
+    st.subheader("🏞️ Média da Vazão Operada por Reservatório — barras empilhadas (horizontal por mês)")
+
     if not df_filtrado.empty:
-        media_vazao = df_filtrado.groupby("Reservatório Monitorado")["Vazão Operada"].mean().reset_index()
+        df = df_filtrado.copy()
+        # Tipagem segura
+        df["Vazão Operada"] = pd.to_numeric(df.get("Vazão Operada", 0), errors="coerce").fillna(0)
+
+        if "Data" in df.columns:
+            df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
+            df["Mês"] = df["Data"].dt.month
+            # Nome dos meses (em português)
+            meses_map = {
+                1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun",
+                7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
+            }
+            df["Mês"] = df["Mês"].map(meses_map)
+        else:
+            df["Mês"] = "Total"
+
+        # Média por reservatório e mês
+        media_vazao = (
+            df.groupby(["Reservatório Monitorado", "Mês"], dropna=True)["Vazão Operada"]
+              .mean()
+              .reset_index()
+        )
+
+        # Conversão de unidade
         media_conv, unit_bar = convert_vazao(media_vazao["Vazão Operada"], unidade_sel)
         media_vazao["Vazão (conv)"] = media_conv
-        st.plotly_chart(px.bar(media_vazao, x="Reservatório Monitorado", y="Vazão (conv)", text_auto=".2s", labels={"Vazão (conv)": f"Média ({unit_bar})"}), use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_media_res")
+
+        # Ordena reservatórios pelo total anual
+        ordem = (
+            media_vazao.groupby("Reservatório Monitorado")["Vazão (conv)"]
+            .sum()
+            .sort_values(ascending=True)
+            .index.tolist()
+        )
+
+        # Gráfico horizontal empilhado
+        fig = px.bar(
+            media_vazao,
+            y="Reservatório Monitorado",
+            x="Vazão (conv)",
+            color="Mês",
+            orientation="h",
+            text_auto=".2s",
+            category_orders={"Reservatório Monitorado": ordem,
+                            "Mês": ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]},
+            labels={
+                "Reservatório Monitorado": "Reservatório",
+                "Vazão (conv)": f"Média ({unit_bar})",
+                "Mês": "Mês"
+            },
+            barmode="stack"
+        )
+
+        fig.update_layout(
+            bargap=0.2,
+            legend_title_text="Mês",
+            xaxis_title=f"Média ({unit_bar})",
+            yaxis_title="Reservatório"
+        )
+
+        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_media_res_mes")
     else:
         st.info("Sem dados para a média.")
 
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
