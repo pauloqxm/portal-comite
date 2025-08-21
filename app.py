@@ -10,6 +10,7 @@ st.set_page_config(
     page_title="Comitê Transparente",
     page_icon="📊",
     layout="wide"
+    initial_sidebar_state="collapsed"
 )
 # ----------------- BARRA FIXA (HEADER) ------------
 render_header()
@@ -40,6 +41,7 @@ with tab6:
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
 
 
