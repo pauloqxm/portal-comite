@@ -234,13 +234,13 @@ def render_vazoes_dashboard():
                 return f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " m³"
 
         if not df_volumes.empty:
-            df_volumes["Volume Formatado"] = df_volumes["Volume Acumulado (m³)"].apply(fmt_m3)
-            df_volumes["Volume Eixo Y"] = df_volumes["Volume Acumulado (m³)"] / 1e6
+            df_volumes["Volume Formatado"] = df_volumes["Volume Liberado (m³)"].apply(fmt_m3)
+            df_volumes["Volume Eixo Y"] = df_volumes["Volume Liberado (m³)"] / 1e6
             df_volumes = df_volumes.sort_values("Volume Eixo Y", ascending=False)
 
             y_max = float(df_volumes["Volume Eixo Y"].max()) if not df_volumes.empty else 1.0
             y_max = y_max * 1.2 if y_max > 0 else 1.0
-            y_title = "Volume acumulado em milhões de m³"
+            y_title = "Volume liberado em milhões de m³"
 
             base = alt.Chart(df_volumes).encode(
                 x=alt.X("Reservatório Monitorado:N", title="Reservatório", sort="-y")
@@ -288,6 +288,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
