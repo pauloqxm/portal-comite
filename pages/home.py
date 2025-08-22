@@ -23,10 +23,12 @@ def render_home():
             <div style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; color: #5a7d9a;">
                 Conteúdo disponível:
                 <ul style="list-style-type: none; padding: 0; margin-top: 10px;">
-                    <li style="margin: 5px 0;">💧 Painel de Vazões: Gráficos e dados de vazão.</li>
+                    <li style="margin: 5px 0;">💧 Painel da Operação: Gráficos e dados de vazão.</li>
                     <li style="margin: 5px 0;">🗺️ Açudes Monitorados: Mapa e dados detalhados.</li>
-                    <li style="margin: 5px 0;">📜 Documentos Oficiais: Atas e apresentações para download.</li>
-                    <li style="margin: 5px 0;">📈 Simulações: Gráficos de cota e volume.</li>
+                    <li style="margin: 5px 0;">📈 Situação das Sedes: Gráficos de cota e volume.</li>
+                    <li style="margin: 5px 0;">💬 Alocação Negociada: Atas e apresentações para download.</li>
+                    <li style="margin: 5px 0;">✉️ Fale Conosco: Entre em contato.</li>
+                    <li style="margin: 5px 0;">🙋🏽 O Comitê: Conheça o Comitê.</li>
                 </ul>
             </div>
         </div>
@@ -34,6 +36,7 @@ def render_home():
         unsafe_allow_html=True
     )
     st.info("👆 Acesse as outras páginas clicando nas abas no topo da tela.", icon="ℹ️")
+
 
 
 
