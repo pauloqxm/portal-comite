@@ -4,6 +4,8 @@ import folium
 from streamlit_folium import folium_static
 from utils.common import load_o_comite_data
 
+st.set_page_config(layout="wide")
+
 def render_o_comite():
     st.title("🙋🏽 O Comitê")
     st.markdown(
