@@ -118,7 +118,7 @@ def render_o_comite():
             st.info("As colunas esperadas não foram encontradas.")
         else:
             tab = dff[cols_exist].rename(columns={"Nome (2)": "Nome"}).sort_values(by="Nome")
-            st.dataframe(tab, use_container_width=True, hide_index=True)
+            st.dataframe(tab, use_container_width=True, hide_index=True, height=560) 
 
     with col_map:
         st.subheader("🗺️ Mapa dos Representantes")
