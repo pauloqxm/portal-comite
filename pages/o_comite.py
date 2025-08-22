@@ -81,58 +81,65 @@ def render_o_comite():
         col = df[colname].dropna().astype(str).str.strip()
         return sorted([x for x in col.unique() if x != ""])
 
-    # Segmento (com Selecionar todos/Limpar)
+    # Opções
+    seg_opts = options("Segmento")
+    mun_opts = options("Município")
+    man_opts = options("Mandato")
+    fun_opts = options("Função")
+
+    # Inicializa session_state ANTES dos widgets
+    for key, opts in [("seg_sel", seg_opts), ("mun_sel", mun_opts),
+                      ("man_sel", man_opts), ("fun_sel", fun_opts)]:
+        if key not in st.session_state:
+            st.session_state[key] = opts
+
+    # Callbacks p/ Select All / Limpar (evita erro do SessionState)
+    def select_all(key, opts):
+        st.session_state[key] = opts
+
+    def clear_all(key):
+        st.session_state[key] = []
+
+    # Segmento (com botões)
     with fc1:
-        seg_opts = options("Segmento")
-        seg_sel = st.multiselect(
+        st.multiselect(
             "Segmento",
             seg_opts,
-            default=st.session_state.get("seg_sel", seg_opts),
-            key="seg_sel"
+            key="seg_sel",
+            default=st.session_state["seg_sel"]
         )
         c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Selecionar todos", key="seg_all_btn"):
-                st.session_state.seg_sel = seg_opts
-        with c2:
-            if st.button("Limpar", key="seg_clear_btn"):
-                st.session_state.seg_sel = []
+        c1.button("Selecionar todos", on_click=select_all, args=("seg_sel", seg_opts))
+        c2.button("Limpar",           on_click=clear_all,  args=("seg_sel",))
 
-    # Município (com Selecionar todos/Limpar)
+    # Município (com botões)
     with fc2:
-        mun_opts = options("Município")
-        mun_sel = st.multiselect(
+        st.multiselect(
             "Município",
             mun_opts,
-            default=st.session_state.get("mun_sel", mun_opts),
-            key="mun_sel"
+            key="mun_sel",
+            default=st.session_state["mun_sel"]
         )
         c3, c4 = st.columns(2)
-        with c3:
-            if st.button("Selecionar todos", key="mun_all_btn"):
-                st.session_state.mun_sel = mun_opts
-        with c4:
-            if st.button("Limpar", key="mun_clear_btn"):
-                st.session_state.mun_sel = []
+        c3.button("Selecionar todos", on_click=select_all, args=("mun_sel", mun_opts))
+        c4.button("Limpar",           on_click=clear_all,  args=("mun_sel",))
 
     # Mandato
     with fc3:
-        man_opts = options("Mandato")
-        man_sel = st.multiselect(
+        st.multiselect(
             "Mandato",
             man_opts,
-            default=st.session_state.get("man_sel", man_opts),
-            key="man_sel"
+            key="man_sel",
+            default=st.session_state["man_sel"]
         )
 
-    # Função (novo filtro)
+    # Função
     with fc4:
-        fun_opts = options("Função")
-        fun_sel = st.multiselect(
+        st.multiselect(
             "Função",
             fun_opts,
-            default=st.session_state.get("fun_sel", fun_opts),
-            key="fun_sel"
+            key="fun_sel",
+            default=st.session_state["fun_sel"]
         )
 
     # Busca por nome (ignora acentos)
@@ -141,12 +148,17 @@ def render_o_comite():
         return "".join(ch for ch in unicodedata.normalize("NFKD", (s or "").lower()) if not unicodedata.combining(ch))
     nome_query = st.text_input("Pesquisar por nome", placeholder="Digite parte do nome…").strip()
 
-    # Aplica filtros
+    # Aplica filtros usando o estado atual
     dff = df.copy()
+    seg_sel = st.session_state["seg_sel"]
+    mun_sel = st.session_state["mun_sel"]
+    man_sel = st.session_state["man_sel"]
+    fun_sel = st.session_state["fun_sel"]
+
     if seg_sel and "Segmento" in dff:   dff = dff[dff["Segmento"].isin(seg_sel)]
     if mun_sel and "Município" in dff:  dff = dff[dff["Município"].isin(mun_sel)]
-    if man_sel and "Mandato" in dff:    dff = dff[dff["Mandato"].isin(man_sel)]
-    if fun_sel and "Função" in dff:     dff = dff[dff["Função"].isin(fun_sel)]
+    if man_sel and "Mandato"   in dff:  dff = dff[dff["Mandato"].isin(man_sel)]
+    if fun_sel and "Função"    in dff:  dff = dff[dff["Função"].isin(fun_sel)]
     if nome_query and "Nome do(a) representante" in dff.columns:
         nq = normalize(nome_query)
         dff = dff[dff["Nome do(a) representante"].apply(lambda x: nq in normalize(str(x)))]
@@ -154,6 +166,7 @@ def render_o_comite():
     if dff.empty:
         st.warning("Sem registros para os filtros selecionados.")
         st.stop()
+
 
 
 # ===== Tabela & Mapa (lado a lado, responsivo) =====
