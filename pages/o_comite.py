@@ -122,13 +122,13 @@ def render_o_comite():
             tab = dff[cols_exist].rename(columns={"Nome (2)": "Nome"}).sort_values(by="Nome")
             st.dataframe(tab, use_container_width=True, hide_index=True, height=560) 
 
-#======================MAPA MELHORADO=============
+#====================== MAPA MELHORADO =============
     with col_map:
         st.subheader("🗺️ Mapa dos Representantes")
-        
-        # Adicionar CSS do Font Awesome
+
+        # CSS do Font Awesome (para ícones)
         font_awesome_css = CssLink('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
-        
+
         tile_option = st.selectbox(
             "Mapa de fundo",
             ["OpenStreetMap", "CartoDB positron", "Stamen Terrain", "CartoDB dark_matter", "Esri Satellite"],
@@ -141,52 +141,67 @@ def render_o_comite():
         if pontos.empty:
             st.info("Sem coordenadas válidas para exibir no mapa.")
         else:
-            # Centralizar no Ceará (coordenadas aproximadas do centro do estado)
-            center = [-5.5, -39.5]  # Coordenadas centrais do Ceará
-            zoom_start = 7  # Zoom para visualizar todo o estado
+            # Centro no Ceará
+            center = [-5.5, -39.5]
+            zoom_start = 7
 
             m = folium.Map(location=center, zoom_start=zoom_start, tiles=None)
-            
-            # Adicionar Font Awesome ao mapa
+
+            # Injetar Font Awesome
             m.get_root().header.add_child(font_awesome_css)
-            
+
             tile_config = {
-                "CartoDB positron": ("https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
-                                    '&copy; <a href="https://carto.com/attributions">CARTO</a>'),
+                "CartoDB positron": (
+                    "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
+                    '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+                ),
                 "OpenStreetMap": ("OpenStreetMap", '&copy; <a href="https://openstreetmap.org">OSM</a>'),
-                "Stamen Terrain": ("https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png",
-                                  'Map tiles by <a href="http://stamen.com">Stamen</a>'),
-                "CartoDB dark_matter": ("https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
-                                        '&copy; <a href="https://carto.com/attributions">CARTO</a>'),
-                "Esri Satellite": ("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                                  "Tiles &copy; Esri"),
+                "Stamen Terrain": (
+                    "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png",
+                    'Map tiles by <a href="http://stamen.com">Stamen</a>'
+                ),
+                "CartoDB dark_matter": (
+                    "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
+                    '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+                ),
+                "Esri Satellite": (
+                    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                    "Tiles &copy; Esri"
+                ),
             }
             tiles, attr = tile_config[tile_option]
             folium.TileLayer(tiles=tiles, attr=attr, name=tile_option, control=True).add_to(m)
 
+            # Paleta por Segmento
             seg_unicos = [s for s in pontos["Segmento"].dropna().unique()]
             palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
                       "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
             color_map = {seg: palette[i % len(palette)] for i, seg in enumerate(seg_unicos)}
             default_color = "#7f7f7f"
 
-            # Criar grupos para cada segmento
+            # Camadas por segmento
             groups = {seg: folium.FeatureGroup(name=f"Segmento: {seg}", show=True) for seg in seg_unicos}
             groups["_sem_segmento"] = folium.FeatureGroup(name="Segmento: (vazio)", show=True)
 
-            # Ícones personalizados para diferentes segmentos
+            # Ícones (font-awesome) por segmento
             icon_config = {
-                "Agricultura": "tractor",
-                "Indústria": "industry",
-                "Comércio": "shopping-cart",
-                "Serviços": "cogs",
-                "Governo": "landmark",
-                "Educação": "graduation-cap",
-                "Saúde": "heart",
-                "Ambiental": "leaf",
-                "Comunidade": "users",
-                "default": "user"
+                "agric": "tractor",         # casa com "Agricultura"
+                "indús": "industry",        # "Indústria"
+                "comér": "shopping-cart",   # "Comércio"
+                "serv":  "cogs",            # "Serviços"
+                "gover": "landmark",        # "Governo"
+                "educ":  "graduation-cap",  # "Educação"
+                "saúd":  "heart",           # "Saúde"
+                "ambient": "leaf",          # "Ambiental"
+                "comun": "users",           # "Comunidade"
             }
+
+            def pick_icon(seg: str) -> str:
+                s = (seg or "").lower()
+                for k, v in icon_config.items():
+                    if k in s:
+                        return v
+                return "user"
 
             for _, row in pontos.iterrows():
                 try:
@@ -210,15 +225,8 @@ def render_o_comite():
                 email = row.get("E-mail", "N/A")
 
                 color = color_map.get(segm, default_color)
-                
-                # Escolher ícone baseado no segmento
-                icon_name = icon_config["default"]
-                for key, icon in icon_config.items():
-                    if key != "default" and key.lower() in segm.lower():
-                        icon_name = icon
-                        break
-                
-                # Popup HTML melhorado
+                icon_name = pick_icon(segm)
+
                 popup_html = f"""
                 <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">
                     <div style="background-color: {color}; color: white; padding: 10px; margin: -10px -10px 10px -10px; border-radius: 5px 5px 0 0;">
@@ -237,35 +245,33 @@ def render_o_comite():
                 </div>
                 """
 
-                # Usar Marker com ícone personalizado
-                icon = folium.Icon(
-                    icon=icon_name,
-                    icon_color='white',
-                    color=color,
-                    prefix='fa'
+                # ÍCONE MENOR com BeautifyIcon
+                icon = BeautifyIcon(
+                    icon=icon_name,                 # nome FA (ex.: 'tractor')
+                    icon_shape='marker',            # formato "pino"
+                    background_color=color,         # cor de fundo do pino
+                    border_color=color,             # borda do pino
+                    text_color='white',             # cor do ícone
+                    border_width=1,
+                    inner_icon_style='font-size:12px;padding-top:2px;'  # <<< menor
                 )
 
                 folium.Marker(
                     location=[lat, lon],
                     icon=icon,
                     tooltip=f"{nome_2} • {sigla} • {segm}",
-                    popup=folium.Popup(popup_html, max_width=350)
+                    popup=folium.Popup(popup_html, max_width=360)
                 ).add_to(groups[grp_key])
 
-            # Adicionar todos os grupos ao mapa
+            # Adiciona grupos ao mapa e controle de camadas
             for g in groups.values():
                 g.add_to(m)
-
-            # Adicionar controle de camadas com botão para recolher
             folium.LayerControl(collapsed=True).add_to(m)
-            
-            # Tornar o mapa mais alto para corresponder à tabela
-            map_height = 650  # Aumentei a altura para 650px
-            
-            # Renderizar o mapa
-            map_html = m._repr_html_()
-            responsive_map_html = f'<div style="width:100%; height:{map_height}px;">{map_html}</div>'
-            st.components.v1.html(responsive_map_html, height=map_height)
+
+            # Altura maior
+            map_height = 720
+            folium_static(m, width=920, height=map_height)
+
 
     # ===== Gráficos (em colunas, responsivos) =====
     st.markdown("---")
