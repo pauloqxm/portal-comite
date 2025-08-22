@@ -71,29 +71,77 @@ def render_o_comite():
         st.info("Planilha vazia ou inacessível.")
         return
 
-    # ===== Filtros =====
+# ===== Filtros =====
     st.markdown("### 🔎 Filtros")
     fc1, fc2, fc3, fc4 = st.columns(4)
 
     def options(colname: str):
-        if colname not in df.columns: return []
+        if colname not in df.columns:
+            return []
         col = df[colname].dropna().astype(str).str.strip()
         return sorted([x for x in col.unique() if x != ""])
 
+    # Segmento (com Selecionar todos/Limpar)
     with fc1:
-        seg_sel = st.multiselect("Segmento", options("Segmento"), default=options("Segmento"))
+        seg_opts = options("Segmento")
+        seg_sel = st.multiselect(
+            "Segmento",
+            seg_opts,
+            default=st.session_state.get("seg_sel", seg_opts),
+            key="seg_sel"
+        )
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Selecionar todos", key="seg_all_btn"):
+                st.session_state.seg_sel = seg_opts
+        with c2:
+            if st.button("Limpar", key="seg_clear_btn"):
+                st.session_state.seg_sel = []
+
+    # Município (com Selecionar todos/Limpar)
     with fc2:
-        mun_sel = st.multiselect("Município", options("Município"), default=options("Município"))
+        mun_opts = options("Município")
+        mun_sel = st.multiselect(
+            "Município",
+            mun_opts,
+            default=st.session_state.get("mun_sel", mun_opts),
+            key="mun_sel"
+        )
+        c3, c4 = st.columns(2)
+        with c3:
+            if st.button("Selecionar todos", key="mun_all_btn"):
+                st.session_state.mun_sel = mun_opts
+        with c4:
+            if st.button("Limpar", key="mun_clear_btn"):
+                st.session_state.mun_sel = []
+
+    # Mandato
     with fc3:
-        man_sel = st.multiselect("Mandato", options("Mandato"), default=options("Mandato"))
+        man_opts = options("Mandato")
+        man_sel = st.multiselect(
+            "Mandato",
+            man_opts,
+            default=st.session_state.get("man_sel", man_opts),
+            key="man_sel"
+        )
+
+    # Função (novo filtro)
     with fc4:
-        fun_sel = st.multiselect("Função", options("Função"), default=options("Função"))
+        fun_opts = options("Função")
+        fun_sel = st.multiselect(
+            "Função",
+            fun_opts,
+            default=st.session_state.get("fun_sel", fun_opts),
+            key="fun_sel"
+        )
 
     # Busca por nome (ignora acentos)
+    import unicodedata
     def normalize(s: str) -> str:
         return "".join(ch for ch in unicodedata.normalize("NFKD", (s or "").lower()) if not unicodedata.combining(ch))
     nome_query = st.text_input("Pesquisar por nome", placeholder="Digite parte do nome…").strip()
 
+    # Aplica filtros
     dff = df.copy()
     if seg_sel and "Segmento" in dff:   dff = dff[dff["Segmento"].isin(seg_sel)]
     if mun_sel and "Município" in dff:  dff = dff[dff["Município"].isin(mun_sel)]
@@ -105,9 +153,10 @@ def render_o_comite():
 
     if dff.empty:
         st.warning("Sem registros para os filtros selecionados.")
-        return
+        st.stop()
 
-    # ===== Tabela & Mapa (lado a lado, responsivo) =====
+
+# ===== Tabela & Mapa (lado a lado, responsivo) =====
     col_tab, col_map = st.columns([0.48, 0.52], gap="large")
 
     with col_tab:
