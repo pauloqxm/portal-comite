@@ -121,7 +121,7 @@ def render_o_comite():
             tab = dff[cols_exist].rename(columns={"Nome (2)": "Nome"}).sort_values(by="Nome")
             st.dataframe(tab, use_container_width=True, hide_index=True, height=560) 
 
-    #======================MAPA MELHORADO=============
+#======================MAPA MELHORADO=============
     with col_map:
         st.subheader("🗺️ Mapa dos Representantes")
         
@@ -140,36 +140,36 @@ def render_o_comite():
         if pontos.empty:
             st.info("Sem coordenadas válidas para exibir no mapa.")
         else:
-            try:
-                center = [pontos["Latitude"].astype(float).mean(), pontos["Longitude"].astype(float).mean()]
-            except Exception:
-                center = [-5.2, -39.5]
+            # Centralizar no Ceará (coordenadas aproximadas do centro do estado)
+            center = [-5.5, -39.5]  # Coordenadas centrais do Ceará
+            zoom_start = 7  # Zoom para visualizar todo o estado
 
-            m = folium.Map(location=center, zoom_start=7, tiles=None)
+            m = folium.Map(location=center, zoom_start=zoom_start, tiles=None)
             
             # Adicionar Font Awesome ao mapa
             m.get_root().header.add_child(font_awesome_css)
             
             tile_config = {
                 "CartoDB positron": ("https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
-                                     '&copy; <a href="https://carto.com/attributions">CARTO</a>'),
+                                    '&copy; <a href="https://carto.com/attributions">CARTO</a>'),
                 "OpenStreetMap": ("OpenStreetMap", '&copy; <a href="https://openstreetmap.org">OSM</a>'),
                 "Stamen Terrain": ("https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png",
-                                   'Map tiles by <a href="http://stamen.com">Stamen</a>'),
+                                  'Map tiles by <a href="http://stamen.com">Stamen</a>'),
                 "CartoDB dark_matter": ("https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
                                         '&copy; <a href="https://carto.com/attributions">CARTO</a>'),
                 "Esri Satellite": ("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                                   "Tiles &copy; Esri"),
+                                  "Tiles &copy; Esri"),
             }
             tiles, attr = tile_config[tile_option]
             folium.TileLayer(tiles=tiles, attr=attr, name=tile_option, control=True).add_to(m)
 
             seg_unicos = [s for s in pontos["Segmento"].dropna().unique()]
             palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
-                       "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
+                      "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
             color_map = {seg: palette[i % len(palette)] for i, seg in enumerate(seg_unicos)}
             default_color = "#7f7f7f"
 
+            # Criar grupos para cada segmento
             groups = {seg: folium.FeatureGroup(name=f"Segmento: {seg}", show=True) for seg in seg_unicos}
             groups["_sem_segmento"] = folium.FeatureGroup(name="Segmento: (vazio)", show=True)
 
@@ -236,7 +236,7 @@ def render_o_comite():
                 </div>
                 """
 
-                # Usar Marker com ícone personalizado em vez de CircleMarker
+                # Usar Marker com ícone personalizado
                 icon = folium.Icon(
                     icon=icon_name,
                     icon_color='white',
@@ -251,15 +251,20 @@ def render_o_comite():
                     popup=folium.Popup(popup_html, max_width=350)
                 ).add_to(groups[grp_key])
 
+            # Adicionar todos os grupos ao mapa
             for g in groups.values():
                 g.add_to(m)
 
-            folium.LayerControl(collapsed=False).add_to(m)
+            # Adicionar controle de camadas com botão para recolher
+            folium.LayerControl(collapsed=True).add_to(m)
             
-            # Tornar o mapa responsivo
+            # Tornar o mapa mais alto para corresponder à tabela
+            map_height = 650  # Aumentei a altura para 650px
+            
+            # Renderizar o mapa
             map_html = m._repr_html_()
-            responsive_map_html = f'<div style="width:100%; height:600px;">{map_html}</div>'
-            st.components.v1.html(responsive_map_html, height=600)
+            responsive_map_html = f'<div style="width:100%; height:{map_height}px;">{map_html}</div>'
+            st.components.v1.html(responsive_map_html, height=map_height)
 
     # ===== Gráficos (em colunas, responsivos) =====
     st.markdown("---")
