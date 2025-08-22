@@ -121,262 +121,87 @@ def render_vazoes_dashboard():
     )
 
 # =====================================================================
-# 📈 Evolução da Vazão Operada por Reservatório
+# 🏞️ Média da Vazão Operada por reservatório — CORRIGIDO
 # =====================================================================
-    st.subheader("📈 Evolução da Vazão Operada por Reservatório")
-
-    fig = go.Figure()
-    cores = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#17becf", "#e377c2"]
-    reservatorios = df_filtrado["Reservatório Monitorado"].dropna().unique()
-
-    # Normaliza Data no dataframe base
-    df_evo = df_filtrado.copy()
-    df_evo["Data"] = pd.to_datetime(df_evo["Data"], errors="coerce").dt.floor("D")
-    data_fim_global = df_evo["Data"].max()
-
-    for i, r in enumerate(reservatorios):
-        dfr = (
-            df_evo[df_evo["Reservatório Monitorado"] == r]
-            .sort_values("Data")
-            .groupby("Data", as_index=False)
-            .last()
-        )
-
-        # Linha principal (Vazão Operada) na unidade selecionada
-        y_vals, unit_suffix = convert_vazao(dfr["Vazão Operada"], unidade_sel)
-        fig.add_trace(go.Scatter(
-            x=dfr["Data"], y=y_vals, mode="lines+markers", name=r,
-            line=dict(shape="hv", width=2, color=cores[i % len(cores)]),
-            marker=dict(size=5),
-            hovertemplate=f"<b>{r}</b><br>Data: %{{x|%d/%m/%Y}}<br>"
-                          f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
-        ))
-
-        # Caso tenha apenas um reservatório selecionado → linhas extras
-        if len(reservatorios) == 1 and len(dfr) > 1:
-            dfr = dfr.copy()
-            dfr["dias_ativos"] = dfr["Data"].diff().dt.days.fillna(0)
-            if pd.notna(data_fim_global):
-                dfr.loc[dfr.index[-1], "dias_ativos"] = (data_fim_global - dfr["Data"].iloc[-1]).days + 1
-
-            if dfr["dias_ativos"].sum() > 0:
-                media_pond = (dfr["Vazão Operada"] * dfr["dias_ativos"]).sum() / dfr["dias_ativos"].sum()
-                media_pond_conv, _ = convert_vazao(pd.Series([media_pond]), unidade_sel)
-                fig.add_hline(
-                    y=float(media_pond_conv.iloc[0]), line_dash="dash", line_width=2, line_color="red",
-                    annotation_text=f"Média ponderada {media_pond_conv.iloc[0]:.2f} {unit_suffix}",
-                    annotation_position="top right"
-                )
-
-            # Linha Azul Vazao_Aloc se existir
-            if "Vazao_Aloc" in dfr.columns:
-                y_aloc, _ = convert_vazao(dfr["Vazao_Aloc"], unidade_sel)
-                fig.add_trace(go.Scatter(
-                    x=dfr["Data"], y=y_aloc, mode="lines",
-                    name="Vazão Alocada", line=dict(color="blue", width=2, dash="dot"),
-                    hovertemplate=f"<b>Vazão Alocada</b><br>Data: %{{x|%d/%m/%Y}}<br>"
-                                  f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
-                ))
-
-    # Legenda na parte inferior
-    fig.update_layout(
-        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5)
-    )
-
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_evolucao")
-
-
-    # =====================================================================
-    # 📊 Volume acumulado por reservatório
-    # =====================================================================
-    st.subheader("📊 Volume acumulado por reservatório")
-
-    cols_necessarias = {"Reservatório Monitorado", "Data", "Vazão Operada"}
-    tem_cols = cols_necessarias.issubset(set(df_filtrado.columns))
-    tem_res = not df_filtrado.empty and df_filtrado["Reservatório Monitorado"].nunique() > 0
-
-    if tem_cols and tem_res:
-        df_box = df_filtrado.copy()
-        df_box["Data"] = pd.to_datetime(df_box["Data"], errors="coerce").dt.floor("D")
-        df_box["Vazão Operada"] = pd.to_numeric(df_box["Vazão Operada"], errors="coerce").fillna(0)
-
-        volumes = []
-        fim_periodo_global = df_box["Data"].max()
-
-        for reservatorio in df_box["Reservatório Monitorado"].dropna().unique():
-            df_res = (
-                df_box[df_box["Reservatório Monitorado"] == reservatorio]
-                .dropna(subset=["Data"])
-                .sort_values("Data")
-                .groupby("Data", as_index=False)
-                .last()
-                .copy()
-            )
-            if df_res.empty:
-                continue
-
-            # Dias entre medições (fecha último intervalo até o fim do período global)
-            df_res["dias_entre_medicoes"] = df_res["Data"].diff().dt.days.fillna(0)
-            ultima_data_res = df_res["Data"].iloc[-1]
-            fim_periodo = fim_periodo_global if pd.notna(fim_periodo_global) else ultima_data_res
-            df_res.loc[df_res.index[-1], "dias_entre_medicoes"] = max((fim_periodo - ultima_data_res).days + 1, 0)
-
-            # l/s -> m³/s
-            segundos_por_dia = 86400
-            vazao_m3s = df_res["Vazão Operada"] / 1000.0
-            df_res["volume_periodo_m3"] = vazao_m3s * segundos_por_dia * df_res["dias_entre_medicoes"]
-
-            volume_total_m3 = float(df_res["volume_periodo_m3"].sum())
-            volumes.append({"Reservatório Monitorado": reservatorio, "Volume Acumulado (m³)": volume_total_m3})
-
-        df_volumes = pd.DataFrame(volumes)
-
-        def fmt_m3(x):
-            if pd.isna(x):
-                return "-"
-            if x >= 1_000_000:
-                return f"{x/1e6:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " mi m³"
-            elif x >= 1_000:
-                return f"{x/1e3:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " mil m³"
-            else:
-                return f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " m³"
-
-        if not df_volumes.empty:
-            df_volumes["Volume Formatado"] = df_volumes["Volume Acumulado (m³)"].apply(fmt_m3)
-            df_volumes["Volume Eixo Y"] = df_volumes["Volume Acumulado (m³)"] / 1e6
-            df_volumes = df_volumes.sort_values("Volume Eixo Y", ascending=False)
-
-            y_max = float(df_volumes["Volume Eixo Y"].max()) if not df_volumes.empty else 1.0
-            y_max = y_max * 1.2 if y_max > 0 else 1.0
-            y_title = "Volume acumulado em milhões de m³"
-
-            base = alt.Chart(df_volumes).encode(
-                x=alt.X("Reservatório Monitorado:N", title="Reservatório", sort="-y")
-            ).properties(
-                title="Volume acumulado por reservatório",
-                height=400
-            ).interactive()
-
-            bars = base.mark_bar(color="steelblue").encode(
-                y=alt.Y("Volume Eixo Y:Q", title=y_title, scale=alt.Scale(domain=[0, y_max])),
-                tooltip=[
-                    alt.Tooltip("Reservatório Monitorado:N", title="Reservatório"),
-                    alt.Tooltip("Volume Formatado:N", title="Volume total")
-                ]
-            )
-
-            text = base.mark_text(
-                align="center",
-                baseline="bottom",
-                dy=-5,
-                fontSize=12
-            ).encode(
-                y=alt.Y("Volume Eixo Y:Q", stack=None),
-                text="Volume Formatado:N"
-            )
-
-            chart = alt.layer(bars, text).resolve_scale(y="independent")
-            st.altair_chart(chart, use_container_width=True)
-        else:
-            st.info("Sem dados suficientes para montar o gráfico.")
-    else:
-        st.info("Sem dados suficientes para o gráfico de volume.")
-
-
-    # =====================================================================
-    # 🏞️ Média da Vazão Operada por reservatório — barras empilhadas horizontal (100% coerente com Evolução)
-    # =====================================================================
     st.subheader("🏞️ Média da Vazão Operada por Reservatório")
 
-    def medias_mensais_ponderadas_por_intervalo(df_base: pd.DataFrame) -> pd.DataFrame:
-        """
-        Calcula média mensal ponderada por dias, respeitando os degraus
-        entre medições (valor constante até a próxima medição).
-        """
+    if not df_filtrado.empty:
+        dfm = df_filtrado.copy()
+        dfm["Data"] = pd.to_datetime(dfm["Data"], errors="coerce")
+        dfm = dfm.dropna(subset=["Data", "Reservatório Monitorado"])
+        
+        # Data máxima do dataset (mesma referência do gráfico de Evolução)
+        data_maxima_dataset = dfm["Data"].max()
+
+        # 1 leitura por dia por reservatório (última do dia), igual ao gráfico de Evolução
+        df_diario = (
+            dfm.sort_values("Data")
+              .groupby(["Reservatório Monitorado", "Data"], as_index=False)
+              .last()
+        )
+
+        # Mês e ano para não misturar períodos
         meses_map = {1:"Jan", 2:"Fev", 3:"Mar", 4:"Abr", 5:"Mai", 6:"Jun",
                     7:"Jul", 8:"Ago", 9:"Set", 10:"Out", 11:"Nov", 12:"Dez"}
+        df_diario["Ano"] = df_diario["Data"].dt.year
+        df_diario["Mês"] = df_diario["Data"].dt.month.map(meses_map)
+        df_diario["MêsRef"] = df_diario["Mês"] + "/" + df_diario["Ano"].astype(str)
 
-        out_rows = []
-        data_fim = df_base["Data"].max()
-
-        for r in df_base["Reservatório Monitorado"].dropna().unique():
-            dfr = (
-                df_base[df_base["Reservatório Monitorado"] == r]
-                .sort_values("Data")
-                .groupby("Data", as_index=False)
-                .last()
-            )
-            if dfr.empty:
-                continue
-
-            # Lista de intervalos [ini, fim] com valor constante
-            datas = dfr["Data"].tolist()
-            vals  = dfr["Vazão Operada"].tolist()
-
-            for j in range(len(datas)):
-                ini = datas[j]
-                if j < len(datas) - 1:
-                    fim = datas[j+1] - pd.Timedelta(days=1)  # até véspera da próxima medição
+        # Função para calcular média ponderada mensal (MESMA metodologia do gráfico de Evolução)
+        def calcular_media_ponderada_mensal(grupo):
+            grupo = grupo.sort_values('Data')
+            grupo = grupo.copy()
+            grupo['dias_ativos'] = grupo['Data'].diff().dt.days.fillna(0)
+            
+            # CORREÇÃO: Usar a mesma lógica do gráfico de Evolução
+            # Para o último registro, calcular dias até a data máxima do dataset
+            if not grupo.empty:
+                ultima_data = grupo['Data'].iloc[-1]
+                
+                # Se for o último mês do dataset, vai até data_maxima_dataset
+                # Se for mês anterior, vai até o final do mês
+                if ultima_data.month == data_maxima_dataset.month and ultima_data.year == data_maxima_dataset.year:
+                    # Último mês: usa data máxima do dataset (igual gráfico Evolução)
+                    dias_restantes = (data_maxima_dataset - ultima_data).days + 1
                 else:
-                    fim = data_fim  # até o fim do período filtrado
+                    # Mês completo: vai até o final do mês
+                    fim_mes = ultima_data + pd.offsets.MonthEnd(0)
+                    dias_restantes = (fim_mes - ultima_data).days + 1
+                
+                grupo.loc[grupo.index[-1], 'dias_ativos'] = dias_restantes
+            
+            # Calcular média ponderada (mesma metodologia do gráfico de Evolução)
+            vazao_total_ponderada = (grupo['Vazão Operada'] * grupo['dias_ativos']).sum()
+            dias_totais = grupo['dias_ativos'].sum()
+            
+            return vazao_total_ponderada / dias_totais if dias_totais > 0 else 0
 
-                if pd.isna(ini) or pd.isna(fim) or fim < ini:
-                    continue
-
-                # Percorre meses que intersectam o intervalo
-                cursor = pd.Timestamp(ini.year, ini.month, 1)
-                last_month_start = pd.Timestamp(fim.year, fim.month, 1)
-                while cursor <= last_month_start:
-                    month_start = cursor
-                    month_end   = (cursor + MonthEnd(1)).floor("D")
-
-                    # Interseção [max(ini, month_start), min(fim, month_end)]
-                    o_ini = max(ini, month_start)
-                    o_fim = min(fim, month_end)
-                    if o_ini <= o_fim:
-                        dias = (o_fim - o_ini).days + 1
-                        out_rows.append({
-                            "Reservatório Monitorado": r,
-                            "Ano": month_start.year,
-                            "MesNum": month_start.month,
-                            "dias": dias,
-                            "soma_pond": vals[j] * dias
-                        })
-
-                    # Próximo mês
-                    cursor = (cursor + MonthEnd(1)) + pd.offsets.Day(1)
-
-        if not out_rows:
-            return pd.DataFrame(columns=["Reservatório Monitorado","MêsRef","Vazão Operada"])
-
-        tmp = pd.DataFrame(out_rows)
-        agg = tmp.groupby(["Reservatório Monitorado","Ano","MesNum"], as_index=False).sum()
-        agg["Vazão Operada"] = agg["soma_pond"] / agg["dias"]
-        agg["MêsRef"] = agg["MesNum"].map(meses_map) + "/" + agg["Ano"].astype(str)
-        return agg[["Reservatório Monitorado","Ano","MesNum","MêsRef","Vazão Operada"]]
-
-    if not df_filtrado.empty:
-        base = df_filtrado.copy()
-        base["Data"] = pd.to_datetime(base["Data"], errors="coerce").dt.floor("D")
-        base = base.dropna(subset=["Data", "Reservatório Monitorado"])
-
-        # Média mensal ponderada por dias dos INTERVALOS (coerente com a escadinha)
-        media_mensal = medias_mensais_ponderadas_por_intervalo(base)
+        # Calcular média mensal ponderada (igual à metodologia do gráfico de Evolução)
+        media_mensal = (
+            df_diario.groupby(["Reservatório Monitorado", "MêsRef"], dropna=True)
+                    .apply(calcular_media_ponderada_mensal)
+                    .reset_index(name='Vazão Operada')
+        )
 
         # Mesma unidade do gráfico de evolução
         y_vals_media, unit_suffix_media = convert_vazao(media_mensal["Vazão Operada"], unidade_sel)
         media_mensal["Vazão (conv)"] = y_vals_media
 
-        # Ordenações
+        # Ordena reservatórios pelo total do período
         ordem_res = (
             media_mensal.groupby("Reservatório Monitorado")["Vazão (conv)"]
                         .sum().sort_values(ascending=True).index.tolist()
         )
-        media_mensal["ord_mes"] = media_mensal["Ano"]*100 + media_mensal["MesNum"]
-        media_mensal = media_mensal.sort_values("ord_mes")
+
+        # Ordena MêsRef cronologicamente
+        inv_meses = {v: k for k, v in meses_map.items()}
+        media_mensal["ord"] = media_mensal["MêsRef"].apply(
+            lambda s: int(s.split("/")[1]) * 100 + inv_meses[s.split("/")[0]]
+        )
+        media_mensal = media_mensal.sort_values("ord")
         ordem_mesref = media_mensal["MêsRef"].unique().tolist()
 
-        # Rotulagem (3 casas < 1000; 2 casas + milhar com ponto >= 1000)
+        # Rotulagem com pontos e unidade
         def format_val_dot(v: float, unit: str) -> str:
             if pd.isna(v):
                 return "- " + unit
@@ -403,7 +228,10 @@ def render_vazoes_dashboard():
                 "MêsRef": "Mês/Ano"
             },
             barmode="stack",
-            hover_data={"Vazão (conv)": False, "Valor Formatado": True}
+            hover_data={
+                "Vazão (conv)": False,
+                "Valor Formatado": True
+            }
         )
 
         fig_media.update_traces(textposition="inside", insidetextanchor="middle", cliponaxis=False)
@@ -422,6 +250,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
