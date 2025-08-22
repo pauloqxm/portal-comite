@@ -5,6 +5,7 @@ from streamlit_folium import folium_static
 import unicodedata
 import plotly.express as px
 from branca.element import CssLink
+from folium.plugins import BeautifyIcon
 
 def render_o_comite():
     st.title("🙋🏽 O Comitê")
