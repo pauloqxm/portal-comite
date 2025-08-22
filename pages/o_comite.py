@@ -1,10 +1,10 @@
-
 import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import folium_static
 import unicodedata
 import plotly.express as px
+from branca.element import CssLink
 
 def render_o_comite():
     st.title("🙋🏽 O Comitê")
@@ -121,10 +121,13 @@ def render_o_comite():
             tab = dff[cols_exist].rename(columns={"Nome (2)": "Nome"}).sort_values(by="Nome")
             st.dataframe(tab, use_container_width=True, hide_index=True, height=560) 
 
-#======================MAPA=============
-
+    #======================MAPA MELHORADO=============
     with col_map:
         st.subheader("🗺️ Mapa dos Representantes")
+        
+        # Adicionar CSS do Font Awesome
+        font_awesome_css = CssLink('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
+        
         tile_option = st.selectbox(
             "Mapa de fundo",
             ["OpenStreetMap", "CartoDB positron", "Stamen Terrain", "CartoDB dark_matter", "Esri Satellite"],
@@ -142,13 +145,11 @@ def render_o_comite():
             except Exception:
                 center = [-5.2, -39.5]
 
-            seg_unicos = [s for s in pontos["Segmento"].dropna().unique()]
-            palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
-                       "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
-            color_map = {seg: palette[i % len(palette)] for i, seg in enumerate(seg_unicos)}
-            default_color = "#7f7f7f"
-
             m = folium.Map(location=center, zoom_start=7, tiles=None)
+            
+            # Adicionar Font Awesome ao mapa
+            m.get_root().header.add_child(font_awesome_css)
+            
             tile_config = {
                 "CartoDB positron": ("https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
                                      '&copy; <a href="https://carto.com/attributions">CARTO</a>'),
@@ -163,8 +164,28 @@ def render_o_comite():
             tiles, attr = tile_config[tile_option]
             folium.TileLayer(tiles=tiles, attr=attr, name=tile_option, control=True).add_to(m)
 
+            seg_unicos = [s for s in pontos["Segmento"].dropna().unique()]
+            palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
+                       "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
+            color_map = {seg: palette[i % len(palette)] for i, seg in enumerate(seg_unicos)}
+            default_color = "#7f7f7f"
+
             groups = {seg: folium.FeatureGroup(name=f"Segmento: {seg}", show=True) for seg in seg_unicos}
             groups["_sem_segmento"] = folium.FeatureGroup(name="Segmento: (vazio)", show=True)
+
+            # Ícones personalizados para diferentes segmentos
+            icon_config = {
+                "Agricultura": "tractor",
+                "Indústria": "industry",
+                "Comércio": "shopping-cart",
+                "Serviços": "cogs",
+                "Governo": "landmark",
+                "Educação": "graduation-cap",
+                "Saúde": "heart",
+                "Ambiental": "leaf",
+                "Comunidade": "users",
+                "default": "user"
+            }
 
             for _, row in pontos.iterrows():
                 try:
@@ -184,39 +205,61 @@ def render_o_comite():
                 mun   = row.get("Município", "N/A")
                 mandato = row.get("Mandato", "N/A")
                 diretoria = row.get("Diretoria", "N/A")
+                telefone = row.get("Telefone", "N/A")
+                email = row.get("E-mail", "N/A")
 
                 color = color_map.get(segm, default_color)
-                popup = folium.Popup(
-                    f"""
-                    <div style="font-family:Arial; font-size:13px; line-height:1.4;">
-                        <div style="font-weight:700; font-size:14px; color:#2c3e50;">{nome_full}</div>
-                        <div><b>Sigla:</b> {sigla}</div>
-                        <div><b>Função:</b> {func}</div>
-                        <div><b>Segmento:</b> {segm}</div>
-                        <div><b>Diretoria:</b> {diretoria}</div>
-                        <div><b>Município:</b> {mun}</div>
-                        <div><b>Mandato:</b> {mandato}</div>
+                
+                # Escolher ícone baseado no segmento
+                icon_name = icon_config["default"]
+                for key, icon in icon_config.items():
+                    if key != "default" and key.lower() in segm.lower():
+                        icon_name = icon
+                        break
+                
+                # Popup HTML melhorado
+                popup_html = f"""
+                <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">
+                    <div style="background-color: {color}; color: white; padding: 10px; margin: -10px -10px 10px -10px; border-radius: 5px 5px 0 0;">
+                        <h3 style="margin:0; padding:0; font-size: 16px;">{nome_full}</h3>
                     </div>
-                    """,
-                    max_width=320
+                    <div style="padding: 5px 0;">
+                        <p style="margin: 5px 0;"><strong>🏢 Sigla:</strong> {sigla}</p>
+                        <p style="margin: 5px 0;"><strong>💼 Função:</strong> {func}</p>
+                        <p style="margin: 5px 0;"><strong>📊 Segmento:</strong> <span style="color: {color}; font-weight: bold;">{segm}</span></p>
+                        <p style="margin: 5px 0;"><strong>👥 Diretoria:</strong> {diretoria}</p>
+                        <p style="margin: 5px 0;"><strong>🏙️ Município:</strong> {mun}</p>
+                        <p style="margin: 5px 0;"><strong>📅 Mandato:</strong> {mandato}</p>
+                        <p style="margin: 5px 0;"><strong>📞 Telefone:</strong> {telefone}</p>
+                        <p style="margin: 5px 0;"><strong>📧 E-mail:</strong> {email}</p>
+                    </div>
+                </div>
+                """
+
+                # Usar Marker com ícone personalizado em vez de CircleMarker
+                icon = folium.Icon(
+                    icon=icon_name,
+                    icon_color='white',
+                    color=color,
+                    prefix='fa'
                 )
 
-                folium.CircleMarker(
+                folium.Marker(
                     location=[lat, lon],
-                    radius=6,
-                    color=color,
-                    fill=True,
-                    fill_color=color,
-                    fill_opacity=0.9,
-                    tooltip=f"{nome_2} • {sigla}",
-                    popup=popup
+                    icon=icon,
+                    tooltip=f"{nome_2} • {sigla} • {segm}",
+                    popup=folium.Popup(popup_html, max_width=350)
                 ).add_to(groups[grp_key])
 
             for g in groups.values():
                 g.add_to(m)
 
             folium.LayerControl(collapsed=False).add_to(m)
-            folium_static(m, width=920, height=560)
+            
+            # Tornar o mapa responsivo
+            map_html = m._repr_html_()
+            responsive_map_html = f'<div style="width:100%; height:600px;">{map_html}</div>'
+            st.components.v1.html(responsive_map_html, height=600)
 
     # ===== Gráficos (em colunas, responsivos) =====
     st.markdown("---")
@@ -265,6 +308,7 @@ def render_o_comite():
         <style>
           @media (max-width: 900px){
             section.main > div.block-container { padding-left: .6rem; padding-right: .6rem; }
+            div[data-testid="column"] { width: 100% !important; }
           }
         </style>
         """,
