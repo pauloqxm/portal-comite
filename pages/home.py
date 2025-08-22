@@ -8,7 +8,7 @@ def render_home():
     st.markdown(
         """        
         <div style="width: 100%; margin: 0; padding: 0;">
-            <img src="https://i.ibb.co/6RBTwKYY/BARRA.png" 
+            <img src="https://i.ibb.co/fzQsqPSJ/LOGOSISTEMA.png" 
                  alt="Logo Portal" 
                  style="width: 100%; height: auto; display: block;">
         </div>
@@ -34,6 +34,7 @@ def render_home():
         unsafe_allow_html=True
     )
     st.info("👆 Acesse as outras páginas clicando nas abas no topo da tela.", icon="ℹ️")
+
 
 
 
