@@ -12,16 +12,16 @@ def render_o_comite():
 <div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
   <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
     <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
-    • Listagem dos representantes com filtros<br>
-    • Mapa categorizado por <b>Segmento</b>, com troca de mapa de fundo<br>
-    • Gráficos de distribuição por <b>Segmento</b> e <b>Município</b>
+    • Listagem dos representantes com filtros e busca<br>
+    • Mapa categorizado por <b>Segmento</b> + troca de mapa de fundo<br>
+    • Distribuição por <b>Segmento</b> e <b>Município</b>
   </p>
 </div>
 """,
         unsafe_allow_html=True,
     )
 
-    # ===== Config da planilha (lê direto aqui) =====
+    # ===== Fonte: Planilha =====
     SHEET_ID = "14Hb7N5yq4u-B3JN8Stpvpbdlt3sL0JxWUYpJK4fzLV8"
     GID = "1572572584"
     CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
@@ -33,7 +33,7 @@ def render_o_comite():
         for c in df.columns:
             df[c] = df[c].astype(str).str.strip()
 
-        # Datas (se existirem)
+        # Datas (opcional)
         for c in ["Inicio do mandato", "Fim do mandato"]:
             if c in df.columns:
                 df[c] = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
@@ -76,8 +76,7 @@ def render_o_comite():
     fc1, fc2, fc3, fc4 = st.columns(4)
 
     def options(colname: str):
-        if colname not in df.columns:
-            return []
+        if colname not in df.columns: return []
         col = df[colname].dropna().astype(str).str.strip()
         return sorted([x for x in col.unique() if x != ""])
 
@@ -90,50 +89,39 @@ def render_o_comite():
     with fc4:
         fun_sel = st.multiselect("Função", options("Função"), default=options("Função"))
 
-    # Filtro por nome (acentos ignorados)
+    # Busca por nome (ignora acentos)
     def normalize(s: str) -> str:
-        return "".join(
-            ch for ch in unicodedata.normalize("NFKD", (s or "").lower())
-            if not unicodedata.combining(ch)
-        )
-    nome_query = st.text_input("Pesquisar por nome (dois primeiros ou completo)", placeholder="Digite parte do nome…").strip()
+        return "".join(ch for ch in unicodedata.normalize("NFKD", (s or "").lower()) if not unicodedata.combining(ch))
+    nome_query = st.text_input("Pesquisar por nome", placeholder="Digite parte do nome…").strip()
 
     dff = df.copy()
-
     if seg_sel and "Segmento" in dff:   dff = dff[dff["Segmento"].isin(seg_sel)]
     if mun_sel and "Município" in dff:  dff = dff[dff["Município"].isin(mun_sel)]
     if man_sel and "Mandato" in dff:    dff = dff[dff["Mandato"].isin(man_sel)]
     if fun_sel and "Função" in dff:     dff = dff[dff["Função"].isin(fun_sel)]
-
     if nome_query and "Nome do(a) representante" in dff.columns:
         nq = normalize(nome_query)
-        mask = dff["Nome do(a) representante"].apply(lambda x: nq in normalize(str(x)))
-        dff = dff[mask]
+        dff = dff[dff["Nome do(a) representante"].apply(lambda x: nq in normalize(str(x)))]
 
     if dff.empty:
         st.warning("Sem registros para os filtros selecionados.")
         return
 
-    # ===== Layout 2 colunas =====
-    col_tab, col_map = st.columns([0.48, 0.52])
+    # ===== Tabela & Mapa (lado a lado, responsivo) =====
+    col_tab, col_map = st.columns([0.48, 0.52], gap="large")
 
-    # --- TABELA (esquerda) ---
     with col_tab:
         st.subheader("📑 Representantes")
-        # Troca Instituição -> Sigla; Nome reduzido (2 palavras)
         cols_tabela = ["Nome (2)", "Sigla", "Função", "Segmento", "Diretoria"]
         cols_exist = [c for c in cols_tabela if c in dff.columns]
         if not cols_exist:
-            st.info("As colunas esperadas não foram encontradas na planilha.")
+            st.info("As colunas esperadas não foram encontradas.")
         else:
             tab = dff[cols_exist].rename(columns={"Nome (2)": "Nome"}).sort_values(by="Nome")
             st.dataframe(tab, use_container_width=True, hide_index=True)
 
-    # --- MAPA (direita) ---
     with col_map:
         st.subheader("🗺️ Mapa dos Representantes")
-
-        # Selecionar mapa de fundo
         tile_option = st.selectbox(
             "Mapa de fundo",
             ["CartoDB positron", "OpenStreetMap", "Stamen Terrain", "CartoDB dark_matter", "Esri Satellite"],
@@ -147,14 +135,10 @@ def render_o_comite():
             st.info("Sem coordenadas válidas para exibir no mapa.")
         else:
             try:
-                center = [
-                    pontos["Latitude"].astype(float).mean(),
-                    pontos["Longitude"].astype(float).mean(),
-                ]
+                center = [pontos["Latitude"].astype(float).mean(), pontos["Longitude"].astype(float).mean()]
             except Exception:
                 center = [-5.2, -39.5]
 
-            # cores por segmento
             seg_unicos = [s for s in pontos["Segmento"].dropna().unique()]
             palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
                        "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
@@ -176,7 +160,6 @@ def render_o_comite():
             tiles, attr = tile_config[tile_option]
             folium.TileLayer(tiles=tiles, attr=attr, name=tile_option, control=True).add_to(m)
 
-            # um FeatureGroup por Segmento (para ligar/desligar)
             groups = {seg: folium.FeatureGroup(name=f"Segmento: {seg}", show=True) for seg in seg_unicos}
             groups["_sem_segmento"] = folium.FeatureGroup(name="Segmento: (vazio)", show=True)
 
@@ -186,7 +169,7 @@ def render_o_comite():
                 except Exception:
                     continue
 
-                segm = row.get("Segmento", "").strip() or "(vazio)"
+                segm = (row.get("Segmento", "") or "").strip() or "(vazio)"
                 grp_key = segm if segm in groups else ("_sem_segmento" if segm == "(vazio)" else segm)
                 if grp_key not in groups:
                     groups[grp_key] = folium.FeatureGroup(name=f"Segmento: {segm}", show=True)
@@ -200,7 +183,6 @@ def render_o_comite():
                 diretoria = row.get("Diretoria", "N/A")
 
                 color = color_map.get(segm, default_color)
-
                 popup = folium.Popup(
                     f"""
                     <div style="font-family:Arial; font-size:13px; line-height:1.4;">
@@ -233,49 +215,55 @@ def render_o_comite():
             folium.LayerControl(collapsed=False).add_to(m)
             folium_static(m, width=920, height=560)
 
-    # ===== Gráficos (abaixo da tabela e mapa) =====
+    # ===== Gráficos (em colunas, responsivos) =====
     st.markdown("---")
     st.subheader("📊 Distribuição dos Representantes")
 
-    # Pizza por Segmento (ajuste de reset_index)
-    if "Segmento" in dff.columns:
-        seg_counts = (
-            dff["Segmento"].fillna("(vazio)").replace("", "(vazio)")
-            .value_counts()
-            .reset_index(name="Contagem")
-            .rename(columns={"index": "Segmento"})
-        )
-        if not seg_counts.empty:
-            fig_pie = px.pie(
-                seg_counts,
-                names="Segmento",
-                values="Contagem",
-                hole=0.35,
-                title="Por Segmento"
-            )
-            fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-            st.plotly_chart(fig_pie, use_container_width=True, config={"displaylogo": False})
-        else:
-            st.info("Sem dados para o gráfico de Segmento.")
+    gcol1, gcol2 = st.columns(2, gap="large")
 
-    # Barras horizontais por Município (ajuste de reset_index)
-    if "Município" in dff.columns:
-        mun_counts = (
-            dff["Município"].fillna("(vazio)").replace("", "(vazio)")
-            .value_counts()
-            .reset_index(name="Contagem")
-            .rename(columns={"index": "Município"})
-            .sort_values("Contagem", ascending=True)
-        )
-        if not mun_counts.empty:
-            fig_bar = px.bar(
-                mun_counts,
-                y="Município",
-                x="Contagem",
-                orientation="h",
-                title="Por Município"
+    with gcol1:
+        if "Segmento" in dff.columns:
+            seg_counts = (
+                dff["Segmento"].fillna("(vazio)").replace("", "(vazio)")
+                .value_counts()
+                .reset_index(name="Contagem")
+                .rename(columns={"index": "Segmento"})
             )
-            fig_bar.update_layout(yaxis_title="Município", xaxis_title="Contagem", bargap=0.2)
-            st.plotly_chart(fig_bar, use_container_width=True, config={"displaylogo": False})
+            if not seg_counts.empty:
+                fig_pie = px.pie(seg_counts, names="Segmento", values="Contagem", hole=0.35, title="Por Segmento")
+                fig_pie.update_traces(textposition="inside", textinfo="percent+label")
+                st.plotly_chart(fig_pie, use_container_width=True, config={"displaylogo": False})
+            else:
+                st.info("Sem dados para o gráfico de Segmento.")
         else:
-            st.info("Sem dados para o gráfico de Município.")
+            st.info("Coluna 'Segmento' não encontrada.")
+
+    with gcol2:
+        if "Município" in dff.columns:
+            mun_counts = (
+                dff["Município"].fillna("(vazio)").replace("", "(vazio)")
+                .value_counts()
+                .reset_index(name="Contagem")
+                .rename(columns={"index": "Município"})
+                .sort_values("Contagem", ascending=True)
+            )
+            if not mun_counts.empty:
+                fig_bar = px.bar(mun_counts, y="Município", x="Contagem", orientation="h", title="Por Município")
+                fig_bar.update_layout(yaxis_title="Município", xaxis_title="Contagem", bargap=0.2)
+                st.plotly_chart(fig_bar, use_container_width=True, config={"displaylogo": False})
+            else:
+                st.info("Sem dados para o gráfico de Município.")
+        else:
+            st.info("Coluna 'Município' não encontrada.")
+
+    # ===== Pequeno ajuste de responsividade de padding =====
+    st.markdown(
+        """
+        <style>
+          @media (max-width: 900px){
+            section.main > div.block-container { padding-left: .6rem; padding-right: .6rem; }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
