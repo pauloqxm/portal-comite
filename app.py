@@ -16,7 +16,7 @@ render_header()
 # =========================
 # CRIAÇÃO DAS ABAS
 # =========================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Inicial", "💧 Painel da Operação", "🗺️ Açudes Monitorados", "📈 Situação das Sedes", "💬 Alocação Negociada", "✉️ Fale Conosco", "🙋🏽 O Comitê"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🏠 Inicial", "💧 Painel da Operação", "🗺️ Açudes Monitorados", "📈 Situação das Sedes", "💬 Alocação Negociada", "✉️ Fale Conosco", "🙋🏽 O Comitê"])
 
 with tab1:
     home.render_home()
@@ -41,6 +41,7 @@ with tab7:
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
 
 
