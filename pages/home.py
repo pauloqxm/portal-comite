@@ -6,9 +6,11 @@ def render_home():
     """    
 #===================TEXTO BOAS VINDAS
     st.markdown(
-        """
-        <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 20px;">
-            <img src="https://i.ibb.co/4ZBktXXH/logo-portal.jpg" alt="Logo Portal" style="width: 680px;">            
+        """        
+        <div style="width: 100%; margin: 0; padding: 0;">
+            <img src="https://i.ibb.co/4ZBktXXH/https://i.ibb.co/6RBTwKYY/BARRA.png" 
+                 alt="Logo Portal" 
+                 style="width: 100%; height: auto; display: block;">
         </div>
         <hr style="border: 0; height: 2px; background: #ddd; margin: 20px auto;">
     
@@ -32,6 +34,7 @@ def render_home():
         unsafe_allow_html=True
     )
     st.info("👆 Acesse as outras páginas clicando nas abas no topo da tela.", icon="ℹ️")
+
 
 
 
