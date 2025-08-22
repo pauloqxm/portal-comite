@@ -5,7 +5,7 @@ from streamlit_folium import folium_static
 import unicodedata
 import plotly.express as px
 from branca.element import CssLink
-from folium.plugins import BeautifyIcon
+# REMOVIDO: from folium.plugins import BeautifyIcon
 
 def render_o_comite():
     st.title("🙋🏽 O Comitê")
@@ -114,15 +114,35 @@ def render_o_comite():
 
     with col_tab:
         st.subheader("📑 Representantes")
+
+        # CSS para compactar as linhas da TABELA
+        st.markdown("""
+        <style>
+        /* cabeçalho mais compacto */
+        div[data-testid="stDataFrame"] div[role="columnheader"]{
+          padding: 4px 6px !important;
+        }
+        /* células com menos padding = menos "gap" entre linhas */
+        div[data-testid="stDataFrame"] div[role="gridcell"]{
+          padding: 2px 6px !important;
+        }
+        /* linha mais “colada” e fonte um pouco menor (opcional) */
+        div[data-testid="stDataFrame"] *{
+          line-height: 1.1 !important;
+          font-size: 13px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         cols_tabela = ["Nome (2)", "Sigla", "Função", "Segmento", "Diretoria"]
         cols_exist = [c for c in cols_tabela if c in dff.columns]
         if not cols_exist:
             st.info("As colunas esperadas não foram encontradas.")
         else:
             tab = dff[cols_exist].rename(columns={"Nome (2)": "Nome"}).sort_values(by="Nome")
-            st.dataframe(tab, use_container_width=True, hide_index=True, height=560) 
+            st.dataframe(tab, use_container_width=True, hide_index=True, height=560)
 
-#====================== MAPA MELHORADO =============
+    #====================== MAPA MELHORADO =============
     with col_map:
         st.subheader("🗺️ Mapa dos Representantes")
 
@@ -172,12 +192,16 @@ def render_o_comite():
             tiles, attr = tile_config[tile_option]
             folium.TileLayer(tiles=tiles, attr=attr, name=tile_option, control=True).add_to(m)
 
-            # Paleta por Segmento
+            # Cores aceitas por folium.Icon (e reconhecidas pelo CSS)
+            allowed_colors = [
+                "blue","red","green","purple","orange","darkred","darkblue","darkgreen",
+                "cadetblue","pink","lightblue","lightgreen","gray","black","lightgray","beige"
+            ]
+
+            # Paleta por Segmento -> nomes de cor (não hex)
             seg_unicos = [s for s in pontos["Segmento"].dropna().unique()]
-            palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
-                      "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
-            color_map = {seg: palette[i % len(palette)] for i, seg in enumerate(seg_unicos)}
-            default_color = "#7f7f7f"
+            marker_color_map = {seg: allowed_colors[i % len(allowed_colors)] for i, seg in enumerate(seg_unicos)}
+            default_marker_color = "gray"
 
             # Camadas por segmento
             groups = {seg: folium.FeatureGroup(name=f"Segmento: {seg}", show=True) for seg in seg_unicos}
@@ -185,17 +209,16 @@ def render_o_comite():
 
             # Ícones (font-awesome) por segmento
             icon_config = {
-                "agric": "tractor",         # casa com "Agricultura"
-                "indús": "industry",        # "Indústria"
-                "comér": "shopping-cart",   # "Comércio"
-                "serv":  "cogs",            # "Serviços"
-                "gover": "landmark",        # "Governo"
-                "educ":  "graduation-cap",  # "Educação"
-                "saúd":  "heart",           # "Saúde"
-                "ambient": "leaf",          # "Ambiental"
-                "comun": "users",           # "Comunidade"
+                "agric": "tractor",         # Agricultura
+                "indús": "industry",        # Indústria
+                "comér": "shopping-cart",   # Comércio
+                "serv":  "cogs",            # Serviços
+                "gover": "landmark",        # Governo
+                "educ":  "graduation-cap",  # Educação
+                "saúd":  "heart",           # Saúde
+                "ambient": "leaf",          # Ambiental
+                "comun": "users",           # Comunidade
             }
-
             def pick_icon(seg: str) -> str:
                 s = (seg or "").lower()
                 for k, v in icon_config.items():
@@ -224,18 +247,18 @@ def render_o_comite():
                 telefone = row.get("Telefone", "N/A")
                 email = row.get("E-mail", "N/A")
 
-                color = color_map.get(segm, default_color)
+                marker_color = marker_color_map.get(segm, default_marker_color)
                 icon_name = pick_icon(segm)
 
                 popup_html = f"""
                 <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">
-                    <div style="background-color: {color}; color: white; padding: 10px; margin: -10px -10px 10px -10px; border-radius: 5px 5px 0 0;">
+                    <div style="background-color: {marker_color}; color: white; padding: 10px; margin: -10px -10px 10px -10px; border-radius: 5px 5px 0 0;">
                         <h3 style="margin:0; padding:0; font-size: 16px;">{nome_full}</h3>
                     </div>
                     <div style="padding: 5px 0;">
                         <p style="margin: 5px 0;"><strong>🏢 Sigla:</strong> {sigla}</p>
                         <p style="margin: 5px 0;"><strong>💼 Função:</strong> {func}</p>
-                        <p style="margin: 5px 0;"><strong>📊 Segmento:</strong> <span style="color: {color}; font-weight: bold;">{segm}</span></p>
+                        <p style="margin: 5px 0;"><strong>📊 Segmento:</strong> <span style="color: {marker_color}; font-weight: bold;">{segm}</span></p>
                         <p style="margin: 5px 0;"><strong>👥 Diretoria:</strong> {diretoria}</p>
                         <p style="margin: 5px 0;"><strong>🏙️ Município:</strong> {mun}</p>
                         <p style="margin: 5px 0;"><strong>📅 Mandato:</strong> {mandato}</p>
@@ -245,20 +268,9 @@ def render_o_comite():
                 </div>
                 """
 
-                # ÍCONE MENOR com BeautifyIcon
-                icon = BeautifyIcon(
-                    icon=icon_name,                 # nome FA (ex.: 'tractor')
-                    icon_shape='marker',            # formato "pino"
-                    background_color=color,         # cor de fundo do pino
-                    border_color=color,             # borda do pino
-                    text_color='white',             # cor do ícone
-                    border_width=1,
-                    inner_icon_style='font-size:12px;padding-top:2px;'  # <<< menor
-                )
-
                 folium.Marker(
                     location=[lat, lon],
-                    icon=icon,
+                    icon=folium.Icon(prefix='fa', icon=icon_name, color=marker_color, icon_color='white'),
                     tooltip=f"{nome_2} • {sigla} • {segm}",
                     popup=folium.Popup(popup_html, max_width=360)
                 ).add_to(groups[grp_key])
@@ -271,7 +283,6 @@ def render_o_comite():
             # Altura maior
             map_height = 720
             folium_static(m, width=920, height=map_height)
-
 
     # ===== Gráficos (em colunas, responsivos) =====
     st.markdown("---")
@@ -314,7 +325,7 @@ def render_o_comite():
         else:
             st.info("Coluna 'Município' não encontrada.")
 
-    # ===== Pequeno ajuste de responsividade de padding =====
+    # ===== Ajuste responsivo de padding =====
     st.markdown(
         """
         <style>
