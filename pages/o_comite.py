@@ -5,7 +5,6 @@ from streamlit_folium import folium_static
 import unicodedata
 import plotly.express as px
 from branca.element import CssLink
-from folium.plugins import BeautifyIcon, MarkerCluster, HeatMap
 
 def render_o_comite():
     st.title("🙋🏽 O Comitê")
@@ -146,25 +145,18 @@ def render_o_comite():
             # altura pareada com o mapa para evitar “buraco” visual
             st.dataframe(tab, use_container_width=True, hide_index=True, height=720)
 
-    #====================== MAPA (Cluster + Heatmap) =============
+#====================== MAPA (sem cluster/heatmap) =============
     with col_map:
         st.subheader("🗺️ Mapa dos Representantes")
 
         # CSS do Font Awesome (para ícones)
         font_awesome_css = CssLink('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
 
-        # Controles do mapa
-        ctrl1, ctrl2, ctrl3 = st.columns([1,1,1])
-        with ctrl1:
-            tile_option = st.selectbox(
-                "Mapa de fundo",
-                ["OpenStreetMap", "CartoDB positron", "Stamen Terrain", "CartoDB dark_matter", "Esri Satellite"],
-                index=0
-            )
-        with ctrl2:
-            use_cluster = st.checkbox("Cluster de marcadores", value=True)
-        with ctrl3:
-            show_heat = st.checkbox("Heatmap", value=False)
+        tile_option = st.selectbox(
+            "Mapa de fundo",
+            ["OpenStreetMap", "CartoDB positron", "Stamen Terrain", "CartoDB dark_matter", "Esri Satellite"],
+            index=0
+        )
 
         have_geo = {"Latitude", "Longitude"}.issubset(dff.columns)
         pontos = dff.dropna(subset=["Latitude", "Longitude"]) if have_geo else pd.DataFrame()
@@ -212,13 +204,6 @@ def render_o_comite():
             groups = {seg: folium.FeatureGroup(name=f"Segmento: {seg}", show=True) for seg in seg_unicos}
             groups["_sem_segmento"] = folium.FeatureGroup(name="Segmento: (vazio)", show=True)
 
-            # Cluster por segmento (se habilitado)
-            clusters = {}
-            if use_cluster:
-                for seg, grp in groups.items():
-                    clusters[seg] = MarkerCluster(name=f"Cluster: {seg}", disableClusteringAtZoom=12)
-                    clusters[seg].add_to(grp)
-
             # Ícones (font-awesome) por segmento
             icon_config = {
                 "agric": "tractor",
@@ -238,7 +223,7 @@ def render_o_comite():
                         return v
                 return "user"
 
-            # Adiciona marcadores
+            # Marcadores simples (sem cluster/heatmap)
             for _, row in pontos.iterrows():
                 try:
                     lat = float(row["Latitude"]); lon = float(row["Longitude"])
@@ -249,9 +234,6 @@ def render_o_comite():
                 grp_key = segm if segm in groups else ("_sem_segmento" if segm == "(vazio)" else segm)
                 if grp_key not in groups:
                     groups[grp_key] = folium.FeatureGroup(name=f"Segmento: {segm}", show=True)
-                    if use_cluster:
-                        clusters[grp_key] = MarkerCluster(name=f"Cluster: {segm}", disableClusteringAtZoom=12)
-                        clusters[grp_key].add_to(groups[grp_key])
 
                 nome_full = row.get("Nome do(a) representante", "N/A")
                 nome_2 = row.get("Nome (2)", nome_full)
@@ -291,38 +273,23 @@ def render_o_comite():
                     border_color=color,
                     text_color='white',
                     border_width=1,
-                    inner_icon_style='font-size:10px;padding-top:2px;'  # menor ainda
+                    inner_icon_style='font-size:10px;padding-top:2px;'
                 )
 
-                marker = folium.Marker(
+                folium.Marker(
                     location=[lat, lon],
                     icon=icon,
                     tooltip=f"{nome_2} • {sigla} • {segm}",
                     popup=folium.Popup(popup_html, max_width=360)
-                )
+                ).add_to(groups[grp_key])
 
-                if use_cluster:
-                    marker.add_to(clusters[grp_key])
-                else:
-                    marker.add_to(groups[grp_key])
-
-            # Heatmap (opcional)
-            if show_heat:
-                heat_pts = pontos[["Latitude","Longitude"]].astype(float).values.tolist()
-                HeatMap(
-                    heat_pts,
-                    name="Heatmap",
-                    radius=18, blur=22, max_zoom=12, min_opacity=0.3
-                ).add_to(m)
-
-            # Adiciona grupos e controles
             for g in groups.values():
                 g.add_to(m)
             folium.LayerControl(collapsed=True).add_to(m)
 
-            # Altura maior
             map_height = 720
             folium_static(m, width=920, height=map_height)
+
 
     # ===== Gráficos (em colunas, responsivos) =====
     st.markdown("""<hr/>""", unsafe_allow_html=True)
