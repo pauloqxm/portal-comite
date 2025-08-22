@@ -165,7 +165,7 @@ def render_vazoes_dashboard():
 
                             fig.add_hline(
                                 y=float(media_pond_conv.iloc[0]), line_dash="dash", line_width=2, line_color="red",
-                                annotation_text=f"Média Ponderada {media_pond_conv.iloc[0]:.2f} {unit_suffix}",
+                                annotation_text=f"Média da Operação {media_pond_conv.iloc[0]:.2f} {unit_suffix}",
                                 annotation_position="top right"
                             )
 
@@ -423,6 +423,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
