@@ -1,126 +1,163 @@
 import streamlit as st
-import re
-from utils.common import salvar_em_planilha
+import pandas as pd
+import folium
+from streamlit_folium import folium_static
+from utils.common import load_o_comite_data
 
 def render_o_comite():
-    """
-    Renderiza a página de formulário de contato "Fale Conosco".
-    """
+    st.title("🙋🏽 O Comitê")
     st.markdown(
         """
-        <style>
-        div[data-testid="stForm"] {
-            border: 1px solid #e6e6e6;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            background: #ffffff;
-        }
-        </style>
-        """,
+<div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
+  <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
+    <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
+    • Atas e apresentações das reuniões da Bacia do Banabuiú<br>
+    • Organizadas por operação, reservatório e parâmetros<br>
+    • Dados de vazão média aprovados
+  </p>
+</div>
+""",
         unsafe_allow_html=True,
     )
 
-    st.title("✉️ Fale Conosco")
-    st.markdown(
-        """
-        <div style="background: linear-gradient(135deg, #f0f4f8 0%, #d9e2eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
-            <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
-                Preencha o formulário abaixo para entrar em contato com o Comitê de Bacia. Seus dados e a sua mensagem são muito importantes para nós.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    df = load_o_comite_data()
+    if df is None or df.empty:
+        st.info("Não há documentos disponíveis no momento.")
+        return
 
-    with st.form(key="contact_form", clear_on_submit=True):
-        st.subheader("1. Dados Pessoais/Institucionais")
-        
-        cols = st.columns(2)
+SHEET_ID = "14Hb7N5yq4u-B3JN8Stpvpbdlt3sL0JxWUYpJK4fzLV8"
+GID = "1572572584"
+CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
 
-        with cols[0]:
-            nome = st.text_input("Nome Completo (obrigatório)")
-            telefone = st.text_input("Telefone/Celular (opcional)", help="Ex: (85) 91234-5678")
-            
-        with cols[1]:
-            email = st.text_input("E-mail (obrigatório)")
-            cpf_cnpj = st.text_input("CPF/CNPJ (opcional)", help="Para demandas institucionais.")
-        
-        cidade_estado = st.text_input("Cidade/Estado (obrigatório)")
+st.title("📋 Conselho — Representantes e Localização")
 
-        email_valido = False
-        if email:
-            if re.match(r"[^@]+@[^@]+\.[^@]+", email):
-                email_valido = True
-            else:
-                st.error("Por favor, insira um e-mail válido.")
-
-        st.markdown("---")
-        st.subheader("2. Tipo de Contato")
-        tipo_contato = st.radio(
-            "Selecione o motivo do contato (obrigatório)",
-            ("Solicitação de informação", "Denúncia/reclamação ambiental",
-             "Sugestão para a gestão da bacia", "Proposta de parceria/projeto",
-             "Imprensa/assessoria de comunicação", "Outro"),
-            key="tipo_contato"
+@st.cache_data(show_spinner=False)
+def load_data(url: str) -> pd.DataFrame:
+    df = pd.read_csv(url, dtype=str)
+    # limpa nomes de colunas (espaços extras)
+    df.columns = [c.strip() for c in df.columns]
+    # normaliza strings
+    for c in df.columns:
+        df[c] = df[c].astype(str).str.strip()
+    # datas (se existirem)
+    for c in ["Inicio do mandato", "Fim do mandato"]:
+        if c in df.columns:
+            df[c] = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
+    # Coordenadas → Latitude/Longitude
+    if "Coordenadas" in df.columns:
+        coords = (
+            df["Coordenadas"]
+            .astype(str).str.strip()
+            .str.replace(";", ",", regex=False)
+            .str.replace("[()\\[\\]]", "", regex=True)
         )
-        outro_contato = st.text_input("Especifique o tipo de contato:", key="outro_contato_field") if tipo_contato == "Outro" else ""
-
-        st.markdown("---")
-        st.subheader("3. Mensagem")
-        assunto = st.text_input("Assunto (obrigatório)", help="Ex: 'Poluição no Rio X'")
-        descricao = st.text_area("Descrição detalhada (obrigatório)", max_chars=2000, height=200)
-
-        st.markdown("---")
-        st.subheader("4. Anexos (opcional)")
-        anexos = st.file_uploader(
-            "Envie documentos ou imagens relevantes",
-            type=["pdf", "jpg", "jpeg", "png"],
-            accept_multiple_files=True
-        )
-
-        st.markdown("---")
-        st.subheader("5. Canal de Resposta Preferencial")
-        canal_resposta = st.radio(
-            "Por onde você prefere ser contatado?",
-            ("E-mail", "Telefone", "Correio físico"),
-            key="canal_resposta"
-        )
-
-        st.markdown("---")
-        st.subheader("6. Autorizações")
-        lgpd_consentimento = st.checkbox(
-            "Concordo com o tratamento dos dados pessoais conforme a LGPD.",
-            help="[Clique aqui para ler nossa política de privacidade.](https://www.cbhbanabuiu.com.br/politica-de-privacidade)",
-            key="lgpd_consentimento"
-        )
-        receber_informativos = st.checkbox(
-            "Desejo receber informativos sobre o Comitê (opcional)",
-            key="receber_informativos"
-        )
-
-        submit_button = st.form_submit_button("Enviar Mensagem")
-
-    if submit_button:
-        if not nome or not email or not cidade_estado or not assunto or not descricao or not lgpd_consentimento or not email_valido:
-            st.error("Por favor, preencha todos os campos obrigatórios e aceite os termos da LGPD.")
+        parts = coords.str.split(",", n=1, expand=True)
+        if parts.shape[1] == 2:
+            df["Latitude"]  = pd.to_numeric(parts[0].str.replace(" ", ""), errors="coerce")
+            df["Longitude"] = pd.to_numeric(parts[1].str.replace(" ", ""), errors="coerce")
         else:
-            dados_formulario = {
-                "nome": nome,
-                "email": email,
-                "telefone": telefone,
-                "cpf_cnpj": cpf_cnpj,
-                "cidade_estado": cidade_estado,
-                "tipo_contato": tipo_contato,
-                "outro_contato": outro_contato,
-                "assunto": assunto,
-                "descricao": descricao,
-                "canal_resposta": canal_resposta,
-                "lgpd_consentimento": lgpd_consentimento,
-                "receber_informativos": receber_informativos
-            }
-            
-            if salvar_em_planilha(dados_formulario):
-                st.success("Sua mensagem foi enviada com sucesso e salva na planilha! Agradecemos o seu contato.")
-            else:
-                st.error("Houve um problema ao salvar sua mensagem. Por favor, verifique as configurações da planilha e tente novamente.")
+            df["Latitude"] = pd.NA
+            df["Longitude"] = pd.NA
+    return df
+
+df = load_data(CSV_URL)
+if df.empty:
+    st.info("Planilha vazia ou inacessível.")
+    st.stop()
+
+# ======== FILTROS ========
+st.markdown("### 🔎 Filtros")
+fc1, fc2, fc3, fc4 = st.columns(4)
+
+def options(colname):
+    return sorted([x for x in df.get(colname, pd.Series(dtype=str)).dropna().unique() if str(x).strip() != ""])
+
+with fc1:
+    seg_sel = st.multiselect("Segmento", options("Segmento"), default=options("Segmento"))
+with fc2:
+    mun_sel = st.multiselect("Município", options("Município"), default=options("Município"))
+with fc3:
+    man_sel = st.multiselect("Mandato", options("Mandato"), default=options("Mandato"))
+with fc4:
+    fun_sel = st.multiselect("Função", options("Função"), default=options("Função"))
+
+dff = df.copy()
+if seg_sel: dff = dff[dff["Segmento"].isin(seg_sel)]
+if mun_sel: dff = dff[dff["Município"].isin(mun_sel)]
+if man_sel and "Mandato" in dff.columns: dff = dff[dff["Mandato"].isin(man_sel)]
+if fun_sel and "Função" in dff.columns: dff = dff[dff["Função"].isin(fun_sel)]
+
+if dff.empty:
+    st.warning("Sem registros para os filtros selecionados.")
+    st.stop()
+
+# ======== LAYOUT 2 COLUNAS ========
+col_tab, col_map = st.columns([0.48, 0.52])
+
+# --- TABELA (coluna esquerda) ---
+with col_tab:
+    st.subheader("📑 Representantes")
+    cols_tabela = ["Nome do(a) representante", "Instituição", "Função", "Segmento", "Diretoria"]
+    # garante colunas existentes
+    cols_exist = [c for c in cols_tabela if c in dff.columns]
+    tab = dff[cols_exist].sort_values(by=cols_exist[0] if cols_exist else dff.columns[0])
+    st.dataframe(
+        tab,
+        use_container_width=True,
+        hide_index=True
+    )
+
+# --- MAPA (coluna direita) ---
+with col_map:
+    st.subheader("🗺️ Mapa dos Representantes")
+    have_geo = {"Latitude", "Longitude"}.issubset(dff.columns)
+    pontos = dff.dropna(subset=["Latitude", "Longitude"]) if have_geo else pd.DataFrame()
+
+    if pontos.empty:
+        st.info("Sem coordenadas válidas para exibir no mapa.")
+    else:
+        try:
+            center = [pontos["Latitude"].astype(float).mean(), pontos["Longitude"].astype(float).mean()]
+        except Exception:
+            center = [-5.2, -39.5]
+
+        m = folium.Map(location=center, zoom_start=7, tiles="CartoDB positron")
+
+        for _, row in pontos.iterrows():
+            try:
+                lat = float(row["Latitude"])
+                lon = float(row["Longitude"])
+            except Exception:
+                continue
+
+            nome = row.get("Nome do(a) representante", "N/A")
+            inst = row.get("Instituição", "N/A")
+            func = row.get("Função", "N/A")
+            segm = row.get("Segmento", "N/A")
+            mun  = row.get("Município", "N/A")
+
+            popup = folium.Popup(
+                f"""
+                <div style="font-family:Arial; font-size:13px;">
+                    <b>{nome}</b><br>
+                    <b>Instituição:</b> {inst}<br>
+                    <b>Função:</b> {func}<br>
+                    <b>Segmento:</b> {segm}<br>
+                    <b>Município:</b> {mun}
+                </div>
+                """,
+                max_width=280
+            )
+
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=6,
+                color="#005BBB",
+                fill=True,
+                fill_color="#1f78b4",
+                fill_opacity=0.9,
+                tooltip=f"{nome} • {inst}",
+                popup=popup
+            ).add_to(m)
+
+        folium_static(m, width=900, height=540)
