@@ -1,702 +1,342 @@
-
-
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
 import folium
-import json
 from streamlit_folium import folium_static
-from folium.plugins import Fullscreen, MousePosition
-from utils.common import load_geojson_data
+import unicodedata
+import plotly.express as px
+from branca.element import CssLink
+# REMOVER: from folium.plugins import BeautifyIcon
 
-st.set_page_config(layout="wide")
-
-def render_dados():
-    
-    st.title("📈 Situação das Sedes Municipais")
-    st.markdown("""
+def render_o_comite():
+    st.title("🙋🏽 O Comitê")
+    st.markdown(
+        """
 <div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
-    <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
-        <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
-        • Situação do abastecimento <b>das Sede Municipais</b><br>
-        • Linha comparativa de <b>Cota Simulada (m)</b> e <b>Cota Realizada (m)</b><br>
-        • Filtros por <b>Data</b>, <b>Açude</b>, <b>Município</b> e <b>Classificação</b><br>
-        • Mapa interativo com camadas<br>
-        • Indicadores de <b>KPIs</b> e tabela de dados
-    </p>
+  <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
+    <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
+    • Listagem dos representantes com filtros e busca<br>
+    • Mapa categorizado por <b>Segmento</b> + troca de mapa de fundo<br>
+    • Distribuição por <b>Segmento</b> e <b>Município</b>
+  </p>
 </div>
-""", unsafe_allow_html=True)
+""",
+        unsafe_allow_html=True,
+    )
 
-    google_sheet_url = "https://docs.google.com/spreadsheets/d/1C40uaNmLUeu-k_FGEPZOgF8FwpSU00C9PtQu8Co4AUI/gviz/tq?tqx=out:csv&sheet=simulacoes_data"
-    try:
-        df = pd.read_csv(google_sheet_url)
-        df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
-        if 'Coordendas' in df.columns:
-            df.rename(columns={'Coordendas': 'Coordenadas'}, inplace=True)
-    except Exception as e:
-        st.error(f"Erro ao carregar os dados da planilha. Verifique se o link está correto e se a planilha está pública. Detalhes do erro: {e}")
-        return
+    # ===== Fonte: Planilha =====
+    SHEET_ID = "14Hb7N5yq4u-B3JN8Stpvpbdlt3sL0JxWUYpJK4fzLV8"
+    GID = "1572572584"
+    CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
 
-    if df.empty:
-        st.info("A planilha de simulações está vazia. Por favor, verifique os dados.")
-        return
+    @st.cache_data(show_spinner=False)
+    def load_data(url: str) -> pd.DataFrame:
+        df = pd.read_csv(url, dtype=str)
+        df.columns = [c.strip() for c in df.columns]
+        for c in df.columns:
+            df[c] = df[c].astype(str).str.strip()
 
-# ---------- Integração das opções de Classificação com o GeoJSON ----------
-    geojson_data = load_geojson_data()
-    geojson_situa = geojson_data.get('geojson_situa', {})
+        # Datas (opcional)
+        for c in ["Inicio do mandato", "Fim do mandato"]:
+            if c in df.columns:
+                df[c] = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
 
-    def _get_geo_classes(gj: dict) -> set:
-        classes = set()
-        if isinstance(gj, dict) and gj.get('type') == 'FeatureCollection':
-            for f in gj.get('features', []):
-                props = (f.get('properties') or {})
-                for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
-                    if k in props and pd.notna(props[k]):
-                        classes.add(str(props[k]).strip())
-                        break
-        return classes
-
-    def _get_classificacao_from_props(props: dict):
-        """Obtém a classificação de um feature do GeoJSON a partir de suas propriedades"""
-        for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
-            if k in props and pd.notna(props[k]):
-                return str(props[k]).strip()
-        return None
-
-    geo_classes = _get_geo_classes(geojson_situa)
-    opcoes_classificacao_df = set(df["Classificação"].dropna().astype(str).str.strip().tolist())
-    opcoes_classificacao = sorted(opcoes_classificacao_df.union(geo_classes))
-
-    # ---------- Estilos dos filtros ----------
-    st.markdown("""
-    <style>
-      .filter-card { border:1px solid #e6e6e6; border-radius:14px; padding:14px;
-                    background:linear-gradient(180deg,#ffffff 0%, #fafafa 100%);
-                    box-shadow:0 6px 16px rgba(0,0,0,.06); margin:6px 0 16px 0; }
-      .filter-title { font-weight:700; color:#006400; margin-bottom:8px; letter-spacing:.2px; }
-      .expander-rounded > details { border:1px solid #e6e6e6 !important; border-radius:14px !important;
-                                     background:#fff !important; box-shadow:0 4px 14px rgba(0,0,0,.06) !important;
-                                     padding:6px 6px 0 6px !important; }
-      .expander-rounded summary { font-weight:600 !important; color:#006400 !important; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # ---------- Filtros ----------
-    with st.container():
-        st.markdown('<div class="expander-rounded">', unsafe_allow_html=True)
-        with st.expander("☰ Filtros (clique para expandir)", expanded=True):
-            st.markdown('<div class="filter-card"><div class="filter-title">Filtros de Visualização</div>', unsafe_allow_html=True)
-
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                opcoes_acudes = sorted(df["Açude"].dropna().unique().tolist())
-                acudes_sel = st.multiselect("Açude", options=opcoes_acudes, default=[])
-            with col2:
-                opcoes_municipios = sorted(df["Município"].dropna().unique().tolist())
-                municipios_sel = st.multiselect("Município", options=opcoes_municipios, default=[])
-            with col3:
-                classificacao_sel = st.multiselect("Classificação", options=opcoes_classificacao, default=opcoes_classificacao)
-            with col4:
-                datas_validas = df["Data"]
-                if not datas_validas.empty:
-                    data_min = datas_validas.min().date()
-                    data_max = datas_validas.max().date()
-                    periodo = st.date_input(
-                        "Período",
-                        value=(data_min, data_max),
-                        min_value=data_min,
-                        max_value=data_max,
-                        format="DD/MM/YYYY"
-                    )
-                else:
-                    periodo = None
-            st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # ---------- Aplicação dos filtros ----------
-    def padronizar_classificacao(valor):
-        """Padroniza os valores de classificação para comparação"""
-        if pd.isna(valor):
-            return "sem classificação"
-        valor = str(valor).strip().lower()
-        if "fora" in valor and "criticidade" in valor:
-            return "fora de criticidade"
-        return valor
-
-    # Aplica os filtros de forma consistente
-    dff = df.copy()
-
-    # Filtro de Açudes
-    if acudes_sel:
-        dff = dff[dff["Açude"].isin(acudes_sel)]
-
-    # Filtro de Municípios
-    if municipios_sel:
-        dff = dff[dff["Município"].isin(municipios_sel)]
-
-    # Filtro de Classificação (com tratamento especial para "Fora de Criticidade")
-    if classificacao_sel:
-        # Padroniza os valores selecionados
-        classificacoes_filtradas = [padronizar_classificacao(c) for c in classificacao_sel]
-        
-        # Aplica o filtro com valores padronizados
-        dff = dff[dff["Classificação"].apply(padronizar_classificacao).isin(classificacoes_filtradas)]
-
-    # Filtro de Período
-    if periodo:
-        if len(periodo) == 1:
-            ini = fim = pd.to_datetime(periodo[0])
+        # Coordenadas → Latitude/Longitude
+        if "Coordenadas" in df.columns:
+            coords = (
+                df["Coordenadas"]
+                .astype(str).str.strip()
+                .str.replace(";", ",", regex=False)
+                .str.replace("[()\\[\\]]", "", regex=True)
+            )
+            parts = coords.str.split(",", n=1, expand=True)
+            if parts.shape[1] == 2:
+                df["Latitude"]  = pd.to_numeric(parts[0].str.replace(" ", ""), errors="coerce")
+                df["Longitude"] = pd.to_numeric(parts[1].str.replace(" ", ""), errors="coerce")
+            else:
+                df["Latitude"] = pd.NA
+                df["Longitude"] = pd.NA
         else:
-            ini, fim = [pd.to_datetime(d) for d in periodo]
-        dff = dff[(dff["Data"] >= ini) & (dff["Data"] <= fim)]
+            df["Latitude"] = pd.NA
+            df["Longitude"] = pd.NA
+
+        # Nome curto (dois primeiros)
+        if "Nome do(a) representante" in df.columns:
+            def dois_primeiros(nm: str) -> str:
+                parts = [p for p in (nm or "").split() if p]
+                return " ".join(parts[:2]) if parts else nm
+            df["Nome (2)"] = df["Nome do(a) representante"].apply(dois_primeiros)
+
+        return df
+
+    df = load_data(CSV_URL)
+    if df is None or df.empty:
+        st.info("Planilha vazia ou inacessível.")
+        return
+
+    # ===== Filtros =====
+    st.markdown("### 🔎 Filtros")
+    fc1, fc2, fc3, fc4 = st.columns(4)
+
+    def options(colname: str):
+        if colname not in df.columns: return []
+        col = df[colname].dropna().astype(str).str.strip()
+        return sorted([x for x in col.unique() if x != ""])
+
+    with fc1:
+        seg_sel = st.multiselect("Segmento", options("Segmento"), default=options("Segmento"))
+    with fc2:
+        mun_sel = st.multiselect("Município", options("Município"), default=options("Município"))
+    with fc3:
+        man_sel = st.multiselect("Mandato", options("Mandato"), default=options("Mandato"))
+    with fc4:
+        fun_sel = st.multiselect("Função", options("Função"), default=options("Função"))
+
+    # Busca por nome (ignora acentos)
+    def normalize(s: str) -> str:
+        return "".join(ch for ch in unicodedata.normalize("NFKD", (s or "").lower()) if not unicodedata.combining(ch))
+    nome_query = st.text_input("Pesquisar por nome", placeholder="Digite parte do nome…").strip()
+
+    dff = df.copy()
+    if seg_sel and "Segmento" in dff:   dff = dff[dff["Segmento"].isin(seg_sel)]
+    if mun_sel and "Município" in dff:  dff = dff[dff["Município"].isin(mun_sel)]
+    if man_sel and "Mandato" in dff:    dff = dff[dff["Mandato"].isin(man_sel)]
+    if fun_sel and "Função" in dff:     dff = dff[dff["Função"].isin(fun_sel)]
+    if nome_query and "Nome do(a) representante" in dff.columns:
+        nq = normalize(nome_query)
+        dff = dff[dff["Nome do(a) representante"].apply(lambda x: nq in normalize(str(x)))]
 
     if dff.empty:
-        st.info("Não há dados para os filtros selecionados.")
+        st.warning("Sem registros para os filtros selecionados.")
         return
 
-    # Latitude/Longitude a partir de "Coordenadas"
-    if 'Coordenadas' in dff.columns:
-        try:
-            dff[['Latitude', 'Longitude']] = dff['Coordenadas'].astype(str).str.split(',', expand=True).astype(float)
-        except Exception:
-            # fallback mais tolerante
-            latlon = dff['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
-            dff['Latitude'] = pd.to_numeric(latlon[0], errors='coerce')
-            dff['Longitude'] = pd.to_numeric(latlon[1], errors='coerce')
-    else:
-        st.warning("A coluna 'Coordenadas' não foi encontrada. O mapa não será exibido.")
+    # ===== Tabela & Mapa =====
+    col_tab, col_map = st.columns([0.48, 0.52], gap="large")
 
-    dff = dff.sort_values(["Açude", "Data"])
+    with col_tab:
+        st.subheader("📑 Representantes")
 
-# ===================== Mapa dos Açudes =====================
-    st.subheader("🌍 Mapa dos Açudes")
+        # CSS para compactar as LINHAS da tabela
+        st.markdown("""
+        <style>
+        div[data-testid="stDataFrame"] div[role="columnheader"]{ padding: 4px 6px !important; }
+        div[data-testid="stDataFrame"] div[role="gridcell"]{ padding: 2px 6px !important; }
+        div[data-testid="stDataFrame"] *{ line-height: 1.1 !important; font-size: 13px !important; }
+        </style>
+        """, unsafe_allow_html=True)
 
-    # CSS para ocupar largura total
-    st.markdown("""
-    <style>
-    section.main > div.block-container {
-      max-width: 100% !important;
-      padding-left: 0 !important;
-      padding-right: 0 !important;
-    }
-    .stIFrame iframe, iframe, .folium-map {
-      width: 100% !important;
-      height: 78vh !important; /* altura em viewport height */
-      display: block;
-      border: none;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+        cols_tabela = ["Nome (2)", "Sigla", "Função", "Segmento", "Diretoria"]
+        cols_exist = [c for c in cols_tabela if c in dff.columns]
+        if not cols_exist:
+            st.info("As colunas esperadas não foram encontradas.")
+        else:
+            tab = dff[cols_exist].rename(columns={"Nome (2)": "Nome"}).sort_values(by="Nome")
+            st.dataframe(tab, use_container_width=True, hide_index=True, height=560)
 
-    with st.expander("Mapas de Fundo", expanded=False):
+    #====================== MAPA (cores ~ iguais ao gráfico) =============
+    with col_map:
+        st.subheader("🗺️ Mapa dos Representantes")
+
+        # CSS do Font Awesome (para ícones)
+        font_awesome_css = CssLink('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
+
         tile_option = st.selectbox(
-            "Estilo do Mapa:",
-            ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
-            index=0,
-            key='map_style_select'
+            "Mapa de fundo",
+            ["OpenStreetMap", "CartoDB positron", "Stamen Terrain", "CartoDB dark_matter", "Esri Satellite"],
+            index=0
         )
 
-    # GeoJSONs adicionais
-    geojson_bacia = geojson_data.get('geojson_bacia', {})
-    geojson_sedes = geojson_data.get('geojson_sedes', {})
+        have_geo = {"Latitude", "Longitude"}.issubset(dff.columns)
+        pontos = dff.dropna(subset=["Latitude", "Longitude"]) if have_geo else pd.DataFrame()
 
-    # Configurações dos tiles
-    tile_config = {
-        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
-        "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
-        "CartoDB positron": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
-        "CartoDB dark_matter": {"tiles": "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png", "attr": '&copy; <a href="https://carto.com/attributions">CARTO</a>'},
-        "Esri Satellite": {"tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "attr": "Tiles &copy; Esri — Source: Esri"},
-        "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
-    }
+        if pontos.empty:
+            st.info("Sem coordenadas válidas para exibir no mapa.")
+        else:
+            # Centro no Ceará
+            center = [-5.5, -39.5]
+            zoom_start = 7
 
-    # Configuração inicial do mapa (será sobrescrita pelo fit_bounds da bacia)
-    if not dff.empty and {'Latitude', 'Longitude'}.issubset(dff.columns):
-        start_center = [float(dff['Latitude'].mean()), float(dff['Longitude'].mean())]
-    else:
-        start_center = [-5.2, -39.5]  # Coordenadas padrão
+            m = folium.Map(location=center, zoom_start=zoom_start, tiles=None)
+            m.get_root().header.add_child(font_awesome_css)
 
-    m = folium.Map(location=start_center, zoom_start=9, tiles=None)
-    folium.TileLayer(
-        tiles=tile_config[tile_option]["tiles"],
-        attr=tile_config[tile_option]["attr"],
-        name=tile_option
-    ).add_to(m)
+            tile_config = {
+                "CartoDB positron": (
+                    "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
+                    '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+                ),
+                "OpenStreetMap": ("OpenStreetMap", '&copy; <a href="https://openstreetmap.org">OSM</a>'),
+                "Stamen Terrain": (
+                    "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png",
+                    'Map tiles by <a href="http://stamen.com">Stamen</a>'
+                ),
+                "CartoDB dark_matter": (
+                    "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
+                    '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+                ),
+                "Esri Satellite": (
+                    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                    "Tiles &copy; Esri"
+                ),
+            }
+            tiles, attr = tile_config[tile_option]
+            folium.TileLayer(tiles=tiles, attr=attr, name=tile_option, control=True).add_to(m)
 
-    # --- Helpers ---
-    def padronizar_classificacao(classificacao):
-        c = str(classificacao or "").strip().lower()
-        c = (c
-            .replace("á","a").replace("ã","a").replace("â","a")
-            .replace("é","e").replace("ê","e")
-            .replace("í","i").replace("î","i")
-            .replace("ó","o").replace("ô","o")
-            .replace("ú","u").replace("û","u")
-            .replace("ç","c"))
-        if c == "normal" or ("fora" in c and "criticidade" in c):
-            return "fora de criticidade"
-        if "alta" in c:
-            return "criticidade alta"
-        if "media" in c:
-            return "criticidade média"
-        if "baixa" in c:
-            return "criticidade baixa"
-        if "sem" in c and "class" in c:
-            return "sem classificação"
-        return c or "sem classificação"
+            # 1) Paleta do gráfico (Plotly) -> hex por Segmento
+            px_palette = px.colors.qualitative.Plotly  # ['#636EFA','#EF553B',...]
+            seg_unicos = [s for s in pontos["Segmento"].dropna().unique()]
+            seg_hex_map = {seg: px_palette[i % len(px_palette)] for i, seg in enumerate(seg_unicos)}
+            seg_hex_map["(vazio)"] = "#9e9e9e"
 
-    def get_classification_color(classificacao):
-        c = padronizar_classificacao(classificacao)
-        color_map = {
-            "fora de criticidade": "#8DCC90",
-            "criticidade alta":    "#E24F42",
-            "criticidade média":   "#ECC116",
-            "criticidade baixa":   "#F4FA4A",
-            "sem classificação":   "#999999"
-        }
-        return color_map.get(c, "#999999")
+            # 2) Cores de marcador suportadas pelo Folium (nome -> hex aproximado)
+            allowed_name_to_hex = {
+                "blue":"#3388ff","red":"#d63e2a","green":"#2eb82e","purple":"#6f42c1","orange":"#fd7e14",
+                "darkred":"#8b0000","darkblue":"#00008b","darkgreen":"#006400","cadetblue":"#5f9ea0",
+                "pink":"#ff69b4","lightblue":"#87cefa","lightgreen":"#90ee90","gray":"#808080",
+                "black":"#000000","lightgray":"#d3d3d3","beige":"#f5f5dc","white":"#ffffff","darkpurple":"#4b0082",
+                "lightred":"#f08080"
+            }
+            allowed_colors = list(allowed_name_to_hex.keys())
 
-    # --- Camada da Bacia + centralização (fit_bounds) ---
-    def _compute_bounds_from_geojson(gj: dict):
-        """Fallback para calcular bounds caso get_bounds não esteja disponível."""
-        try:
-            if not isinstance(gj, dict) or gj.get("type") != "FeatureCollection":
-                return None
-            lats, lons = [], []
-            for feat in gj.get("features", []):
-                geom = (feat or {}).get("geometry", {}) or {}
-                gtype = geom.get("type")
-                coords = geom.get("coordinates", [])
-                if gtype == "Polygon":
-                    for ring in coords:
-                        for lon, lat in ring:
-                            lats.append(lat); lons.append(lon)
-                elif gtype == "MultiPolygon":
-                    for poly in coords:
-                        for ring in poly:
-                            for lon, lat in ring:
-                                lats.append(lat); lons.append(lon)
-                elif gtype == "LineString":
-                    for lon, lat in coords:
-                        lats.append(lat); lons.append(lon)
-                elif gtype == "MultiLineString":
-                    for line in coords:
-                        for lon, lat in line:
-                            lats.append(lat); lons.append(lon)
-                elif gtype == "Point" and len(coords) >= 2:
-                    lons.append(coords[0]); lats.append(coords[1])
-                elif gtype == "MultiPoint":
-                    for lon, lat in coords:
-                        lats.append(lat); lons.append(lon)
-            if lats and lons:
-                return [[min(lats), min(lons)], [max(lats), max(lons)]]
-        except Exception:
-            return None
-        return None
+            def hex_to_rgb(h):
+                h = h.lstrip('#')
+                return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 
-    if geojson_bacia:
-        gj_bacia = folium.GeoJson(
-            geojson_bacia,
-            name="Bacia do Banabuiú",
-            style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.1},
-            tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])
-        ).add_to(m)
+            def nearest_folium_color(hex_color: str) -> str:
+                import math
+                r1,g1,b1 = hex_to_rgb(hex_color)
+                best, best_dist = None, 1e9
+                for name, hx in allowed_name_to_hex.items():
+                    r2,g2,b2 = hex_to_rgb(hx)
+                    d = math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2)
+                    if d < best_dist:
+                        best, best_dist = name, d
+                return best or "gray"
 
-        # Centraliza o mapa nos limites da bacia
-        try:
-            bounds = gj_bacia.get_bounds()  # disponível no Folium >= 0.14
-        except Exception:
-            bounds = _compute_bounds_from_geojson(geojson_bacia)
-        if bounds:
-            m.fit_bounds(bounds)
+            # 3) Mapa Segmento -> cor do marcador (nome) e cor do popup (hex igual ao gráfico)
+            marker_color_map = {seg: nearest_folium_color(seg_hex_map.get(seg, "#9e9e9e"))
+                                for seg in (seg_unicos + ["(vazio)"])}
 
-    # --- Sedes Municipais ---
-    if geojson_sedes and isinstance(geojson_sedes, dict) and "features" in geojson_sedes:
-        sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=True)
-        for feature in geojson_sedes["features"]:
-            props = feature.get("properties", {})
-            geom  = feature.get("geometry", {})
-            coords = geom.get("coordinates", [])
-            if geom.get("type") == "Point" and isinstance(coords, (list, tuple)) and len(coords) >= 2:
-                nome = props.get("NOME_MUNIC", "Sem nome")
+            # Camadas por segmento
+            groups = {seg: folium.FeatureGroup(name=f"Segmento: {seg}", show=True) for seg in seg_unicos}
+            groups["_sem_segmento"] = folium.FeatureGroup(name="Segmento: (vazio)", show=True)
+
+            # Ícones (font-awesome) por segmento
+            icon_config = {
+                "agric": "tractor", "indús": "industry", "comér": "shopping-cart", "serv":  "cogs",
+                "gover": "landmark", "educ":  "graduation-cap", "saúd":  "heart", "ambient": "leaf", "comun": "users",
+            }
+            def pick_icon(seg: str) -> str:
+                s = (seg or "").lower()
+                for k, v in icon_config.items():
+                    if k in s: return v
+                return "user"
+
+            for _, row in pontos.iterrows():
                 try:
-                    lat, lon = float(coords[1]), float(coords[0])
-                    folium.Marker(
-                        [lat, lon],
-                        icon=folium.CustomIcon(
-                            "https://cdn-icons-png.flaticon.com/512/854/854878.png",
-                            icon_size=(25, 25)
-                        ),
-                        tooltip=nome
-                    ).add_to(sedes_layer)
+                    lat = float(row["Latitude"]); lon = float(row["Longitude"])
                 except Exception:
                     continue
-        sedes_layer.add_to(m)
 
-    # --- Situação da Bacia (filtrada) ---
-    def _get_classificacao_from_props(props: dict):
-        if not isinstance(props, dict):
-            return None
-        for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
-            if k in props and pd.notna(props[k]):
-                return padronizar_classificacao(props[k])
-        return None
+                segm = (row.get("Segmento", "") or "").strip() or "(vazio)"
+                grp_key = segm if segm in groups else ("_sem_segmento" if segm == "(vazio)" else segm)
+                if grp_key not in groups:
+                    groups[grp_key] = folium.FeatureGroup(name=f"Segmento: {segm}", show=True)
 
-    def filtrar_geojson_por_classificacao(geojson_fc, classes_sel):
-        if not geojson_fc or geojson_fc.get('type') != 'FeatureCollection':
-            return {}
-        sel_lower = {str(c).lower() for c in (classes_sel or [])}
-        feats = []
-        for f in geojson_fc.get('features', []):
-            cls = _get_classificacao_from_props(f.get('properties', {}))
-            if cls is None:
-                if {'sem classificação', 'sem classificacao'} & sel_lower:
-                    feats.append(f)
-            else:
-                if cls.lower() in sel_lower:
-                    feats.append(f)
-        return {'type': 'FeatureCollection', 'features': feats} if feats else {}
+                nome_full = row.get("Nome do(a) representante", "N/A")
+                nome_2 = row.get("Nome (2)", nome_full)
+                sigla = row.get("Sigla", row.get("Instituição", "N/A"))
+                func  = row.get("Função", "N/A")
+                mun   = row.get("Município", "N/A")
+                mandato = row.get("Mandato", "N/A")
+                diretoria = row.get("Diretoria", "N/A")
+                telefone = row.get("Telefone", "N/A")
+                email = row.get("E-mail", "N/A")
 
-    geojson_situa_filtrado = filtrar_geojson_por_classificacao(geojson_situa, classificacao_sel)
-    if geojson_situa_filtrado:
-        situa_group = folium.FeatureGroup(name="Situação da Bacia", show=True)
-        folium.GeoJson(
-            geojson_situa_filtrado,
-            style_function=lambda feature: {
-                'fillColor': get_classification_color(feature.get('properties', {}).get('Classificação')),
-                'color': '#555555',
-                'weight': 1.5,
-                'fillOpacity': 0.7,
-                'opacity': 0.9
-            },
-            tooltip=folium.GeoJsonTooltip(
-                fields=['Classificação'],
-                aliases=['Classificação:'],
-                sticky=True
-            )
-        ).add_to(situa_group)
-        situa_group.add_to(m)
+                color_hex = seg_hex_map.get(segm, "#9e9e9e")                     # igual ao gráfico
+                marker_color = marker_color_map.get(segm, "gray")                 # cor suportada pelo Folium
+                icon_name = pick_icon(segm)
 
-    # --- Marcadores dos Açudes ---
-    if not dff.empty and {'Latitude', 'Longitude'}.issubset(dff.columns):
-        for _, row in dff.iterrows():
-            try:
-                lat = float(row['Latitude']); lon = float(row['Longitude'])
-            except Exception:
-                continue
-            classificacao = row.get('Classificação', 'Sem classificação')
-            color_marker = get_classification_color(classificacao)
-            popup_html = f"""
-            <div style="font-family: Arial, sans-serif; font-size: 14px;">
-                <h4 style="margin:0; padding:0; color: #2c3e50;">{row.get('Açude', 'N/A')}</h4>
-                <p><b>Município:</b> {row.get('Município', 'N/A')}</p>
-                <p><b>Cota Simulada:</b> {row.get('Cota Simulada (m)', 'N/A')} m</p>
-                <p><b>Cota Realizada:</b> {row.get('Cota Realizada (m)', 'N/A')} m</p>
-                <p><b>Volume:</b> {row.get('Volume(m³)', 'N/A')} m³</p>
-                <p><b>Classificação:</b> <span style="color: {color_marker}; font-weight: bold;">{classificacao}</span></p>
-            </div>
-            """
-            folium.CircleMarker(
-                location=[lat, lon],
-                radius=6,
-                color=color_marker,
-                fill=True,
-                fill_color=color_marker,
-                fill_opacity=0.9,
-                tooltip=row.get('Açude', 'N/A'),
-                popup=folium.Popup(popup_html, max_width=300)
-            ).add_to(m)
-
-    # --- Controles e render ---
-    Fullscreen().add_to(m)
-    MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
-    folium.LayerControl(collapsed=False).add_to(m)
-
-    folium_static(m, width=1400, height=650)
-
-    # Legenda (igual ao seu código)
-    st.markdown("""
-    <style>
-    .map-legend-container {
-        position: relative;
-        margin-top: -40px;
-        margin-bottom: 20px;
-        z-index: 1000;
-    }
-    .map-legend {
-        background: white;
-        padding: 10px 15px;
-        border-radius: 5px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        border: 1px solid #eee;
-        display: inline-block;
-        margin: 0 auto;
-    }
-    .legend-items {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 15px;
-        justify-content: center;
-    }
-    .legend-item {
-        display: flex;
-        align-items: center;
-    }
-    .legend-color {
-        width: 18px;
-        height: 18px;
-        margin-right: 8px;
-        border: 1px solid #555;
-        border-radius: 3px;
-    }
-    .legend-label {
-        font-size: 13px;
-        font-family: Arial, sans-serif;
-        color: #333;
-    }
-    </style>
-
-    <div class="map-legend-container">
-        <div class="map-legend">
-            <div class="legend-items">
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #E24F42;"></div>
-                    <span class="legend-label">Criticidade Alta (até 12/2025)</span>
+                popup_html = f"""
+                <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">
+                    <div style="background-color: {color_hex}; color: white; padding: 10px; margin: -10px -10px 10px -10px; border-radius: 5px 5px 0 0;">
+                        <h3 style="margin:0; padding:0; font-size: 16px;">{nome_full}</h3>
+                    </div>
+                    <div style="padding: 5px 0;">
+                        <p style="margin: 5px 0;"><strong>🏢 Sigla:</strong> {sigla}</p>
+                        <p style="margin: 5px 0;"><strong>💼 Função:</strong> {func}</p>
+                        <p style="margin: 5px 0;"><strong>📊 Segmento:</strong> <span style="color: {color_hex}; font-weight: bold;">{segm}</span></p>
+                        <p style="margin: 5px 0;"><strong>👥 Diretoria:</strong> {diretoria}</p>
+                        <p style="margin: 5px 0;"><strong>🏙️ Município:</strong> {mun}</p>
+                        <p style="margin: 5px 0;"><strong>📅 Mandato:</strong> {mandato}</p>
+                        <p style="margin: 5px 0;"><strong>📞 Telefone:</strong> {telefone}</p>
+                        <p style="margin: 5px 0;"><strong>📧 E-mail:</strong> {email}</p>
+                    </div>
                 </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #ECC116;"></div>
-                    <span class="legend-label">Criticidade Média (até 06/2026)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #F4FA4A;"></div>
-                    <span class="legend-label">Criticidade Baixa (até 12/2026)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #8DCC90;"></div>
-                    <span class="legend-label">Fora de Criticidade (após 12/2026)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #999999;"></div>
-                    <span class="legend-label">Sem classificação</span>
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # ===================== KPIs =====================
-    st.container().empty() 
-    st.markdown("---")
-    st.subheader("📊 Indicadores de Desempenho (KPIs)")
-    st.markdown("""
-    <style>
-    .kpi-card {
-        background-color: #f0f4f8;
-        border: 1px solid #d9e2eb;
-        border-radius: 10px;
-        padding: 20px;
-        text-align: center;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        transition: transform 0.2s;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-    .kpi-card:hover { transform: translateY(-5px); }
-    .kpi-label { font-size: 16px; color: #5a7d9a; font-weight: bold; margin-bottom: 5px; }
-    .kpi-value { font-size: 28px; font-weight: bold; color: #2c3e50; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    kpi_cols = st.columns(4)
-    
-    # KPI: Vazão Simulada (m³/h)
-    if 'Liberação (m³/s)' in dff.columns:
-        with kpi_cols[0]:
-            try:
-                # Converte valores para numérico
-                dff["Liberação (m³/s)"] = pd.to_numeric(
-                    dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'),
-                    errors='coerce'
-                )
-                
-                # Encontra o dia MAIS ANTIGO
-                data_mais_antiga = dff['Data'].min()
-                
-                # Filtra os dados apenas para o dia mais antigo
-                df_dia_antigo = dff[dff['Data'] == data_mais_antiga]
-                
-                # Calcula a liberação para UMA HORA (m³/s → m³/h)
-                primeira_liberacao_m3s = df_dia_antigo["Liberação (m³/s)"].iloc[0]  # Pega o primeiro valor
-                liberacao_m3h = primeira_liberacao_m3s * 3600  # Conversão para m³/h
-                
-                st.markdown(f"""
-                <div class="kpi-card">
-                    <div class="kpi-label">Vazão Simulada (m³/h)</div>
-                    <div class="kpi-value">{liberacao_m3h:,.2f}</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.warning(f"Não foi possível calcular a liberação. Erro: {str(e)}")
-    else:
-        with kpi_cols[0]:
-            st.warning("Coluna 'Liberação (m³/s)' não encontrada. KPI não disponível.")
-
-    # KPI: Data Inicial
-    with kpi_cols[1]:
-        if not dff.empty:
-            primeira_data = dff["Data"].min().strftime('%d/%m/%Y')
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-label">Data Inicial</div>
-                <div class="kpi-value">{primeira_data}</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="kpi-card">
-                <div class="kpi-label">Data Inicial</div>
-                <div class="kpi-value">N/A</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # KPI: Data Final
-    with kpi_cols[2]:
-        if not dff.empty and 'Data' in dff.columns:
-            ultima_data = dff['Data'].max().strftime('%d/%m/%Y')
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-label">Data Final</div>
-                <div class="kpi-value">{ultima_data}</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="kpi-card">
-                <div class="kpi-label">Data Final</div>
-                <div class="kpi-value">N/A</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # KPI: Dias do Período
-    with kpi_cols[3]:
-        if 'Data' in dff.columns and not dff['Data'].isna().all():
-            dias = (dff["Data"].max() - dff["Data"].min()).days
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-label">Dias do Período</div>
-                <div class="kpi-value">{dias}</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="kpi-card">
-                <div class="kpi-label">Dias do Período</div>
-                <div class="kpi-value">N/A</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # ===================== Gráfico de Cotas =====================
-    st.markdown("---")
-    st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
-    if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
-        dff["Cota Simulada (m)"] = pd.to_numeric(dff["Cota Simulada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
-        dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
-        fig_cotas = go.Figure()
-        for acude in sorted(dff["Açude"].dropna().unique()):
-            base = dff[dff["Açude"] == acude].sort_values("Data")
-            fig_cotas.add_trace(go.Scatter(
-                x=base["Data"], y=base["Cota Simulada (m)"],
-                mode="lines+markers", name=f"{acude} - Cota Simulada (m)",
-                hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
-            ))
-            fig_cotas.add_trace(go.Scatter(
-                x=base["Data"], y=base["Cota Realizada (m)"],
-                mode="lines+markers", name=f"{acude} - Cota Realizada (m)",
-                hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
-            ))
-        fig_cotas.update_layout(
-            template="plotly_white",
-            margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-            xaxis_title="Data",
-            yaxis=dict(title="Cota (m)", tickformat=".2f"),
-            height=480
-        )
-        st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
-    else:
-        st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
-
-    # ===================== Gráfico de Volume =====================
-    st.subheader("📈 Volume (hm³)")
-    if 'Volume(m³)' in dff.columns and 'Volume (%)' in dff.columns and 'Volume Observado (m³)' in dff.columns:
-        dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
-        dff["Volume (%)"] = pd.to_numeric(dff["Volume (%)"].astype(str).str.replace(',', '.'), errors='coerce')
-        dff["Volume Observado (m³)"] = pd.to_numeric(dff["Volume Observado (m³)"].astype(str).str.replace(',', '.'), errors='coerce')
-        dff['Volume (hm³)'] = dff['Volume(m³)'] / 1_000_000
-        dff['Volume Observado (hm³)'] = dff['Volume Observado (m³)'] / 1_000_000
-        fig_vol = go.Figure()
-        for acude in sorted(dff["Açude"].dropna().unique()):
-            base = dff[dff["Açude"] == acude].sort_values("Data")
-            fig_vol.add_trace(go.Scatter(
-                x=base["Data"], y=base["Volume (hm³)"],
-                mode="lines+markers",
-                name=f"{acude} - Vol. Simulado (hm³)",
-                hovertemplate="""
-                    <b>%{x|%d/%m/%Y}</b><br>
-                    <b>Vol. Simulado:</b> %{y:,.2f} hm³<br>
-                    <b>Vol. Percentual:</b> %{customdata:,.2f}%<br>
-                    <extra></extra>
-                """,
-                customdata=base["Volume (%)"]
-            ))
-            fig_vol.add_trace(go.Scatter(
-                x=base["Data"], y=base["Volume Observado (hm³)"],
-                mode="lines+markers",
-                name=f"{acude} - Vol. Observado (hm³)",
-                hovertemplate="""
-                    <b>%{x|%d/%m/%Y}</b><br>
-                    <b>Vol. Observado:</b> %{y:,.2f} hm³<br>
-                    <extra></extra>
                 """
-            ))
-        fig_vol.update_layout(
-            template="plotly_white",
-            margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-            xaxis_title="Data",
-            yaxis_title="Volume (hm³)",
-            height=420
-        )
-        st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
-    else:
-        st.info("Gráfico de Volume não disponível. Verifique se as colunas 'Volume(m³)', 'Volume (%)' e 'Volume Observado (m³)' existem na planilha.")
 
-    # ===================== Tabela =====================
+                folium.Marker(
+                    location=[lat, lon],
+                    icon=folium.Icon(prefix='fa', icon=icon_name, color=marker_color, icon_color='white'),
+                    tooltip=f"{nome_2} • {sigla} • {segm}",
+                    popup=folium.Popup(popup_html, max_width=360)
+                ).add_to(groups[grp_key])
+
+            for g in groups.values():
+                g.add_to(m)
+            folium.LayerControl(collapsed=True).add_to(m)
+
+            map_height = 720
+            folium_static(m, width=920, height=map_height)
+
+    # ===== Gráficos =====
     st.markdown("---")
-    st.subheader("📋 Tabela de Dados")
-    with st.expander("Ver dados filtrados"):
-        colunas_tabela = [
-            'Data','Açude','Município','Região Hidrográfica',
-            'Cota Simulada (m)','Cota Realizada (m)','Volume(m³)','Volume Observado (m³)',
-            'Volume (%)','Evapor. Parcial(mm)','Cota Interm. (m)',
-            'Liberação (m³/s)','Liberação (m³)','Classificação','Coordenadas'
-        ]
-        colunas_existentes = [col for col in colunas_tabela if col in dff.columns]
-        dff_tabela = dff[colunas_existentes]
-        st.dataframe(
-            dff_tabela.sort_values(["Açude", "Data"], ascending=[True, False]),
-            use_container_width=True,
-            column_config={
-                "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                "Cota Simulada (m)": st.column_config.NumberColumn(format="%.3f"),
-                "Cota Realizada (m)": st.column_config.NumberColumn(format="%.3f"),
-                "Volume(m³)": st.column_config.NumberColumn(format="%.2f"),
-                "Volume Observado (m³)": st.column_config.NumberColumn(format="%.2f"),
-                "Volume (%)": st.column_config.NumberColumn(format="%.2f"),
-                "Liberação (m³/s)": st.column_config.NumberColumn(format="%.2f"),
-                "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
-            }
-        )
+    st.subheader("📊 Distribuição dos Representantes")
+
+    gcol1, gcol2 = st.columns(2, gap="large")
+
+    with gcol1:
+        if "Segmento" in dff.columns:
+            seg_counts = (
+                dff["Segmento"].fillna("(vazio)").replace("", "(vazio)")
+                .value_counts()
+                .reset_index(name="Contagem")
+                .rename(columns={"index": "Segmento"})
+            )
+            if not seg_counts.empty:
+                fig_pie = px.pie(seg_counts, names="Segmento", values="Contagem", hole=0.35, title="Por Segmento")
+                fig_pie.update_traces(textposition="inside", textinfo="percent+label")
+                st.plotly_chart(fig_pie, use_container_width=True, config={"displaylogo": False})
+            else:
+                st.info("Sem dados para o gráfico de Segmento.")
+        else:
+            st.info("Coluna 'Segmento' não encontrada.")
+
+    with gcol2:
+        if "Município" in dff.columns:
+            mun_counts = (
+                dff["Município"].fillna("(vazio)").replace("", "(vazio)")
+                .value_counts()
+                .reset_index(name="Contagem")
+                .rename(columns={"index": "Município"})
+                .sort_values("Contagem", ascending=True)
+            )
+            if not mun_counts.empty:
+                fig_bar = px.bar(mun_counts, y="Município", x="Contagem", orientation="h", title="Por Município")
+                fig_bar.update_layout(yaxis_title="Município", xaxis_title="Contagem", bargap=0.2)
+                st.plotly_chart(fig_bar, use_container_width=True, config={"displaylogo": False})
+            else:
+                st.info("Sem dados para o gráfico de Município.")
+        else:
+            st.info("Coluna 'Município' não encontrada.")
+
+    # ===== Responsivo =====
+    st.markdown(
+        """
+        <style>
+          @media (max-width: 900px){
+            section.main > div.block-container { padding-left: .6rem; padding-right: .6rem; }
+            div[data-testid="column"] { width: 100% !important; }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
