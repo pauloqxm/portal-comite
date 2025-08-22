@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import folium
@@ -71,105 +72,43 @@ def render_o_comite():
         st.info("Planilha vazia ou inacessível.")
         return
 
-# ===== Filtros =====
+    # ===== Filtros =====
     st.markdown("### 🔎 Filtros")
     fc1, fc2, fc3, fc4 = st.columns(4)
 
     def options(colname: str):
-        if colname not in df.columns:
-            return []
+        if colname not in df.columns: return []
         col = df[colname].dropna().astype(str).str.strip()
         return sorted([x for x in col.unique() if x != ""])
 
-    # Opções
-    seg_opts = options("Segmento")
-    mun_opts = options("Município")
-    man_opts = options("Mandato")
-    fun_opts = options("Função")
-
-    # Inicializa session_state ANTES dos widgets
-    for key, opts in [("seg_sel", seg_opts), ("mun_sel", mun_opts),
-                      ("man_sel", man_opts), ("fun_sel", fun_opts)]:
-        if key not in st.session_state:
-            st.session_state[key] = opts
-
-    # Callbacks p/ Select All / Limpar (evita erro do SessionState)
-    def select_all(key, opts):
-        st.session_state[key] = opts
-
-    def clear_all(key):
-        st.session_state[key] = []
-
-    # Segmento (com botões)
     with fc1:
-        st.multiselect(
-            "Segmento",
-            seg_opts,
-            key="seg_sel",
-            default=st.session_state["seg_sel"]
-        )
-        c1, c2 = st.columns(2)
-        c1.button("Selecionar todos", on_click=select_all, args=("seg_sel", seg_opts))
-        c2.button("Limpar",           on_click=clear_all,  args=("seg_sel",))
-
-    # Município (com botões)
+        seg_sel = st.multiselect("Segmento", options("Segmento"), default=options("Segmento"))
     with fc2:
-        st.multiselect(
-            "Município",
-            mun_opts,
-            key="mun_sel",
-            default=st.session_state["mun_sel"]
-        )
-        c3, c4 = st.columns(2)
-        c3.button("Selecionar todos", on_click=select_all, args=("mun_sel", mun_opts))
-        c4.button("Limpar",           on_click=clear_all,  args=("mun_sel",))
-
-    # Mandato
+        mun_sel = st.multiselect("Município", options("Município"), default=options("Município"))
     with fc3:
-        st.multiselect(
-            "Mandato",
-            man_opts,
-            key="man_sel",
-            default=st.session_state["man_sel"]
-        )
-
-    # Função
+        man_sel = st.multiselect("Mandato", options("Mandato"), default=options("Mandato"))
     with fc4:
-        st.multiselect(
-            "Função",
-            fun_opts,
-            key="fun_sel",
-            default=st.session_state["fun_sel"]
-        )
+        fun_sel = st.multiselect("Função", options("Função"), default=options("Função"))
 
     # Busca por nome (ignora acentos)
-    import unicodedata
     def normalize(s: str) -> str:
         return "".join(ch for ch in unicodedata.normalize("NFKD", (s or "").lower()) if not unicodedata.combining(ch))
     nome_query = st.text_input("Pesquisar por nome", placeholder="Digite parte do nome…").strip()
 
-    # Aplica filtros usando o estado atual
     dff = df.copy()
-    seg_sel = st.session_state["seg_sel"]
-    mun_sel = st.session_state["mun_sel"]
-    man_sel = st.session_state["man_sel"]
-    fun_sel = st.session_state["fun_sel"]
-
     if seg_sel and "Segmento" in dff:   dff = dff[dff["Segmento"].isin(seg_sel)]
     if mun_sel and "Município" in dff:  dff = dff[dff["Município"].isin(mun_sel)]
-    if man_sel and "Mandato"   in dff:  dff = dff[dff["Mandato"].isin(man_sel)]
-    if fun_sel and "Função"    in dff:  dff = dff[dff["Função"].isin(fun_sel)]
+    if man_sel and "Mandato" in dff:    dff = dff[dff["Mandato"].isin(man_sel)]
+    if fun_sel and "Função" in dff:     dff = dff[dff["Função"].isin(fun_sel)]
     if nome_query and "Nome do(a) representante" in dff.columns:
         nq = normalize(nome_query)
         dff = dff[dff["Nome do(a) representante"].apply(lambda x: nq in normalize(str(x)))]
 
     if dff.empty:
         st.warning("Sem registros para os filtros selecionados.")
-        st.stop()
+        return
 
-
-
-# ===== Tabela & Mapa (lado a lado, responsivo) =====
+    # ===== Tabela & Mapa (lado a lado, responsivo) =====
     col_tab, col_map = st.columns([0.48, 0.52], gap="large")
 
     with col_tab:
