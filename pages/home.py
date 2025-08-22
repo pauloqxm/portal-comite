@@ -3,8 +3,7 @@ import streamlit as st
 def render_home():
     """
     Renderiza a página inicial de boas-vindas da aplicação.
-    """
-    st.title("Olá! Bem-vindos(as) ao Portal Comitê de Bacia do Rio Banabuiú!")
+    """    
 #===================TEXTO BOAS VINDAS
     st.markdown(
         """
@@ -33,6 +32,7 @@ def render_home():
         unsafe_allow_html=True
     )
     st.info("👆 Acesse as outras páginas clicando nas abas no topo da tela.", icon="ℹ️")
+
 
 
 
