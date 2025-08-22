@@ -1,276 +1,299 @@
-import streamlit as st
-import pandas as pd
-import folium
-from streamlit_folium import folium_static
-import unicodedata
-import plotly.express as px
+# =====================================================================
+# 📈 Evolução da Vazão Operada por Reservatório
+# =====================================================================
+st.subheader("📈 Evolução da Vazão Operada por Reservatório")
 
-def render_o_comite():
-    st.title("🙋🏽 O Comitê")
-    st.markdown(
-        """
-<div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
-  <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
-    <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
-    • Listagem dos representantes com filtros<br>
-    • Mapa categorizado por <b>Segmento</b>, com troca de mapa de fundo<br>
-    • Gráficos de distribuição por <b>Segmento</b> e <b>Município</b>
-  </p>
-</div>
-""",
-        unsafe_allow_html=True,
+# Verificar se há dados para mostrar
+if not df_filtrado.empty and "Reservatório Monitorado" in df_filtrado.columns:
+    fig = go.Figure()
+    cores = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#17becf", "#e377c2"]
+    reservatorios = df_filtrado["Reservatório Monitorado"].dropna().unique()
+
+    if len(reservatorios) > 0:
+        for i, r in enumerate(reservatorios):
+            dfr = (
+                df_filtrado[df_filtrado["Reservatório Monitorado"] == r]
+                .sort_values("Data")
+                .groupby("Data", as_index=False)
+                .last()
+            )
+
+            if not dfr.empty:
+                # Linha principal (Vazão Operada)
+                y_vals, unit_suffix = convert_vazao(dfr["Vazão Operada"], unidade_sel)
+                fig.add_trace(go.Scatter(
+                    x=dfr["Data"], y=y_vals, mode="lines+markers", name=r,
+                    line=dict(shape="hv", width=2, color=cores[i % len(cores)]),
+                    marker=dict(size=5),
+                    hovertemplate=f"<b>{r}</b><br>Data: %{{x|%d/%m/%Y}}<br>"
+                                  f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
+                ))
+
+                # Caso tenha apenas um reservatório selecionado → linhas extras
+                if len(reservatorios) == 1 and len(dfr) > 1:
+                    # Média ponderada no período com base em dias "ativos"
+                    dfr = dfr.copy()
+                    dfr["dias_ativos"] = dfr["Data"].diff().dt.days.fillna(0)
+                    if not dfr.empty:
+                        dmax = df_filtrado["Data"].max()
+                        dfr.loc[dfr.index[-1], "dias_ativos"] = (dmax - dfr["Data"].iloc[-1]).days + 1
+
+                        media_pond = (dfr["Vazão Operada"] * dfr["dias_ativos"]).sum() / dfr["dias_ativos"].sum()
+                        media_pond_conv, _ = convert_vazao(pd.Series([media_pond]), unidade_sel)
+
+                        fig.add_hline(
+                            y=float(media_pond_conv.iloc[0]), line_dash="dash", line_width=2, line_color="red",
+                            annotation_text=f"Média Ponderada {media_pond_conv.iloc[0]:.2f} {unit_suffix}",
+                            annotation_position="top right"
+                        )
+
+                    # Linha Azul Vazao_Aloc se existir
+                    if "Vazao_Aloc" in dfr.columns:
+                        y_aloc, _ = convert_vazao(dfr["Vazao_Aloc"], unidade_sel)
+                        fig.add_trace(go.Scatter(
+                            x=dfr["Data"], y=y_aloc, mode="lines",
+                            name="Vazão Alocada", line=dict(color="blue", width=2, dash="dot"),
+                            hovertemplate=f"<b>Vazão Alocada</b><br>Data: %{{x|%d/%m/%Y}}<br>"
+                                          f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
+                        ))
+
+        # Legenda na parte inferior
+        fig.update_layout(
+            legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
+            height=500,
+            title="Evolução da Vazão Operada por Reservatório"
+        )
+
+        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_evolucao")
+    else:
+        st.info("Nenhum reservatório encontrado para exibir o gráfico.")
+else:
+    st.info("Dados insuficientes para exibir o gráfico de evolução.")
+
+# =====================================================================
+# 📊 Volume acumulado por reservatório
+# =====================================================================
+st.subheader("📊 Volume acumulado por reservatório")
+
+cols_necessarias = {"Reservatório Monitorado", "Data", "Vazão Operada"}
+tem_cols = cols_necessarias.issubset(set(df_filtrado.columns))
+tem_res = not df_filtrado.empty and df_filtrado["Reservatório Monitorado"].nunique() > 0
+
+if tem_cols and tem_res:
+    df_box = df_filtrado.copy()
+    df_box["Data"] = pd.to_datetime(df_box["Data"], errors="coerce")
+    df_box["Vazão Operada"] = pd.to_numeric(df_box["Vazão Operada"], errors="coerce").fillna(0)
+
+    volumes = []
+    fim_periodo_global = df_box["Data"].max()
+
+    for reservatorio in df_box["Reservatório Monitorado"].dropna().unique():
+        df_res = (
+            df_box[df_box["Reservatório Monitorado"] == reservatorio]
+            .dropna(subset=["Data"])
+            .sort_values("Data")
+            .copy()
+        )
+        if df_res.empty:
+            continue
+
+        # Dias entre medições (fecha último intervalo até o fim do período global)
+        df_res["dias_entre_medicoes"] = df_res["Data"].diff().dt.days.fillna(0)
+        ultima_data_res = df_res["Data"].iloc[-1]
+        fim_periodo = fim_periodo_global if pd.notna(fim_periodo_global) else ultima_data_res
+        df_res.loc[df_res.index[-1], "dias_entre_medicoes"] = max((fim_periodo - ultima_data_res).days + 1, 0)
+
+        # Se Vazão Operada está em l/s, converter para m³/s dividindo por 1000
+        segundos_por_dia = 86400
+        vazao_m3s = df_res["Vazão Operada"] / 1000.0
+        df_res["volume_periodo_m3"] = vazao_m3s * segundos_por_dia * df_res["dias_entre_medicoes"]
+
+        volume_total_m3 = float(df_res["volume_periodo_m3"].sum())
+        volumes.append({"Reservatório Monitorado": reservatorio, "Volume Acumulado (m³)": volume_total_m3})
+
+    df_volumes = pd.DataFrame(volumes)
+
+    def fmt_m3(x):
+        if pd.isna(x):
+            return "-"
+        if x >= 1_000_000:
+            return f"{x/1e6:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " mi m³"
+        elif x >= 1_000:
+            return f"{x/1e3:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " mil m³"
+        else:
+            return f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " m³"
+
+    if not df_volumes.empty:
+        df_volumes["Volume Formatado"] = df_volumes["Volume Acumulado (m³)"].apply(fmt_m3)
+        df_volumes["Volume Eixo Y"] = df_volumes["Volume Acumulado (m³)"] / 1e6
+        df_volumes = df_volumes.sort_values("Volume Eixo Y", ascending=False)
+
+        y_max = float(df_volumes["Volume Eixo Y"].max()) if not df_volumes.empty else 1.0
+        y_max = y_max * 1.2 if y_max > 0 else 1.0
+        y_title = "Volume acumulado em milhões de m³"
+
+        base = alt.Chart(df_volumes).encode(
+            x=alt.X("Reservatório Monitorado:N", title="Reservatório", sort="-y")
+        ).properties(
+            title="Volume acumulado por reservatório",
+            height=400
+        ).interactive()
+
+        bars = base.mark_bar(color="steelblue").encode(
+            y=alt.Y("Volume Eixo Y:Q", title=y_title, scale=alt.Scale(domain=[0, y_max])),
+            tooltip=[
+                alt.Tooltip("Reservatório Monitorado:N", title="Reservatório"),
+                alt.Tooltip("Volume Formatado:N", title="Volume total")
+            ]
+        )
+
+        # Texto com o valor formatado em cima de cada barra
+        text = base.mark_text(
+            align="center",
+            baseline="bottom",
+            dy=-5,
+            fontSize=12
+        ).encode(
+            y=alt.Y("Volume Eixo Y:Q", stack=None),
+            text="Volume Formatado:N"
+        )
+
+        chart = alt.layer(bars, text).resolve_scale(y="independent")
+        st.altair_chart(chart, use_container_width=True)
+    else:
+        st.info("Sem dados suficientes para montar o gráfico.")
+else:
+    st.info("Sem dados suficientes para o gráfico de volume.")
+
+# =====================================================================
+# 🏞️ Média da Vazão Operada por reservatório — CORRIGIDO
+# =====================================================================
+st.subheader("🏞️ Média da Vazão Operada por Reservatório")
+
+if not df_filtrado.empty and "Reservatório Monitorado" in df_filtrado.columns:
+    dfm = df_filtrado.copy()
+    dfm["Data"] = pd.to_datetime(dfm["Data"], errors="coerce")
+    dfm = dfm.dropna(subset=["Data", "Reservatório Monitorado"])
+    
+    # Data máxima do dataset (mesma referência do gráfico de Evolução)
+    data_maxima_dataset = dfm["Data"].max()
+
+    # 1 leitura por dia por reservatório (última do dia), igual ao gráfico de Evolução
+    df_diario = (
+        dfm.sort_values("Data")
+          .groupby(["Reservatório Monitorado", "Data"], as_index=False)
+          .last()
     )
 
-    # ===== Config da planilha (lê direto aqui) =====
-    SHEET_ID = "14Hb7N5yq4u-B3JN8Stpvpbdlt3sL0JxWUYpJK4fzLV8"
-    GID = "1572572584"
-    CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
+    # Mês e ano para não misturar períodos
+    meses_map = {1:"Jan", 2:"Fev", 3:"Mar", 4:"Abr", 5:"Mai", 6:"Jun",
+                7:"Jul", 8:"Ago", 9:"Set", 10:"Out", 11:"Nov", 12:"Dez"}
+    df_diario["Ano"] = df_diario["Data"].dt.year
+    df_diario["Mês"] = df_diario["Data"].dt.month.map(meses_map)
+    df_diario["MêsRef"] = df_diario["Mês"] + "/" + df_diario["Ano"].astype(str)
 
-    @st.cache_data(show_spinner=False)
-    def load_data(url: str) -> pd.DataFrame:
-        df = pd.read_csv(url, dtype=str)
-        df.columns = [c.strip() for c in df.columns]
-        for c in df.columns:
-            df[c] = df[c].astype(str).str.strip()
-
-        # Datas (se existirem)
-        for c in ["Inicio do mandato", "Fim do mandato"]:
-            if c in df.columns:
-                df[c] = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
-
-        # Coordenadas → Latitude/Longitude
-        if "Coordenadas" in df.columns:
-            coords = (
-                df["Coordenadas"]
-                .astype(str).str.strip()
-                .str.replace(";", ",", regex=False)
-                .str.replace("[()\\[\\]]", "", regex=True)
-            )
-            parts = coords.str.split(",", n=1, expand=True)
-            if parts.shape[1] == 2:
-                df["Latitude"]  = pd.to_numeric(parts[0].str.replace(" ", ""), errors="coerce")
-                df["Longitude"] = pd.to_numeric(parts[1].str.replace(" ", ""), errors="coerce")
+    # Função para calcular média ponderada mensal (MESMA metodologia do gráfico de Evolução)
+    def calcular_media_ponderada_mensal(grupo):
+        grupo = grupo.sort_values('Data')
+        grupo = grupo.copy()
+        grupo['dias_ativos'] = grupo['Data'].diff().dt.days.fillna(0)
+        
+        # CORREÇÃO: Usar a mesma lógica do gráfico de Evolução
+        # Para o último registro, calcular dias até a data máxima do dataset
+        if not grupo.empty:
+            ultima_data = grupo['Data'].iloc[-1]
+            
+            # Se for o último mês do dataset, vai até data_maxima_dataset
+            # Se for mês anterior, vai até o final do mês
+            if ultima_data.month == data_maxima_dataset.month and ultima_data.year == data_maxima_dataset.year:
+                # Último mês: usa data máxima do dataset (igual gráfico Evolução)
+                dias_restantes = (data_maxima_dataset - ultima_data).days + 1
             else:
-                df["Latitude"] = pd.NA
-                df["Longitude"] = pd.NA
+                # Mês completo: vai até o final do mês
+                fim_mes = ultima_data + pd.offsets.MonthEnd(0)
+                dias_restantes = (fim_mes - ultima_data).days + 1
+            
+            grupo.loc[grupo.index[-1], 'dias_ativos'] = dias_restantes
+        
+        # Calcular média ponderada (mesma metodologia do gráfico de Evolução)
+        vazao_total_ponderada = (grupo['Vazão Operada'] * grupo['dias_ativos']).sum()
+        dias_totais = grupo['dias_ativos'].sum()
+        
+        return vazao_total_ponderada / dias_totais if dias_totais > 0 else 0
+
+    # Calcular média mensal ponderada (igual à metodologia do gráfico de Evolução)
+    try:
+        media_mensal = (
+            df_diario.groupby(["Reservatório Monitorado", "MêsRef"], dropna=True)
+                     .apply(calcular_media_ponderada_mensal)
+                     .reset_index(name='Vazão Operada')
+        )
+
+        if not media_mensal.empty:
+            # Mesma unidade do gráfico de evolução
+            y_vals_media, unit_suffix_media = convert_vazao(media_mensal["Vazão Operada"], unidade_sel)
+            media_mensal["Vazão (conv)"] = y_vals_media
+
+            # Ordena reservatórios pelo total do período
+            ordem_res = (
+                media_mensal.groupby("Reservatório Monitorado")["Vazão (conv)"]
+                            .sum().sort_values(ascending=True).index.tolist()
+            )
+
+            # Ordena MêsRef cronologicamente
+            inv_meses = {v: k for k, v in meses_map.items()}
+            media_mensal["ord"] = media_mensal["MêsRef"].apply(
+                lambda s: int(s.split("/")[1]) * 100 + inv_meses[s.split("/")[0]]
+            )
+            media_mensal = media_mensal.sort_values("ord")
+            ordem_mesref = media_mensal["MêsRef"].unique().tolist()
+
+            # Rotulagem com pontos e unidade
+            def format_val_dot(v: float, unit: str) -> str:
+                if pd.isna(v):
+                    return "- " + unit
+                if abs(v) < 1000:
+                    s = f"{v:.3f}"
+                else:
+                    s = f"{v:,.2f}".replace(",", ".")
+                return f"{s} {unit}"
+
+            media_mensal["Valor Formatado"] = media_mensal["Vazão (conv)"].apply(lambda v: format_val_dot(v, unit_suffix_media))
+
+            # Gráfico horizontal empilhado por Mês/Ano
+            fig_media = px.bar(
+                media_mensal,
+                y="Reservatório Monitorado",
+                x="Vazão (conv)",
+                color="MêsRef",
+                orientation="h",
+                text="Valor Formatado",
+                category_orders={"Reservatório Monitorado": ordem_res, "MêsRef": ordem_mesref},
+                labels={
+                    "Reservatório Monitorado": "Reservatório",
+                    "Vazão (conv)": f"Média ({unit_suffix_media})",
+                    "MêsRef": "Mês/Ano"
+                },
+                barmode="stack",
+                hover_data={
+                    "Vazão (conv)": False,
+                    "Valor Formatado": True
+                }
+            )
+
+            fig_media.update_traces(textposition="inside", insidetextanchor="middle", cliponaxis=False)
+            fig_media.update_layout(
+                bargap=0.2,
+                legend_title_text="Mês/Ano",
+                xaxis_title=f"Média ({unit_suffix_media})",
+                yaxis_title="Reservatório",
+                height=500
+            )
+
+            st.plotly_chart(fig_media, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_media_res_mes_alinhado")
         else:
-            df["Latitude"] = pd.NA
-            df["Longitude"] = pd.NA
-
-        # Nome curto (dois primeiros)
-        if "Nome do(a) representante" in df.columns:
-            def dois_primeiros(nm: str) -> str:
-                parts = [p for p in (nm or "").split() if p]
-                return " ".join(parts[:2]) if parts else nm
-            df["Nome (2)"] = df["Nome do(a) representante"].apply(dois_primeiros)
-
-        return df
-
-    df = load_data(CSV_URL)
-    if df is None or df.empty:
-        st.info("Planilha vazia ou inacessível.")
-        return
-
-    # ===== Filtros =====
-    st.markdown("### 🔎 Filtros")
-    fc1, fc2, fc3, fc4 = st.columns(4)
-
-    def options(colname: str):
-        if colname not in df.columns:
-            return []
-        col = df[colname].dropna().astype(str).str.strip()
-        return sorted([x for x in col.unique() if x != ""])
-
-    with fc1:
-        seg_sel = st.multiselect("Segmento", options("Segmento"), default=options("Segmento"))
-    with fc2:
-        mun_sel = st.multiselect("Município", options("Município"), default=options("Município"))
-    with fc3:
-        man_sel = st.multiselect("Mandato", options("Mandato"), default=options("Mandato"))
-    with fc4:
-        fun_sel = st.multiselect("Função", options("Função"), default=options("Função"))
-
-    # Filtro por nome (acentos ignorados)
-    def normalize(s: str) -> str:
-        return "".join(
-            ch for ch in unicodedata.normalize("NFKD", (s or "").lower())
-            if not unicodedata.combining(ch)
-        )
-    nome_query = st.text_input("Pesquisar por nome (dois primeiros ou completo)", placeholder="Digite parte do nome…").strip()
-
-    dff = df.copy()
-
-    if seg_sel and "Segmento" in dff:   dff = dff[dff["Segmento"].isin(seg_sel)]
-    if mun_sel and "Município" in dff:  dff = dff[dff["Município"].isin(mun_sel)]
-    if man_sel and "Mandato" in dff:    dff = dff[dff["Mandato"].isin(man_sel)]
-    if fun_sel and "Função" in dff:     dff = dff[dff["Função"].isin(fun_sel)]
-
-    if nome_query and "Nome do(a) representante" in dff.columns:
-        nq = normalize(nome_query)
-        mask = dff["Nome do(a) representante"].apply(lambda x: nq in normalize(str(x)))
-        dff = dff[mask]
-
-    if dff.empty:
-        st.warning("Sem registros para os filtros selecionados.")
-        return
-
-    # ===== Layout 2 colunas =====
-    col_tab, col_map = st.columns([0.48, 0.52])
-
-    # --- TABELA (esquerda) ---
-    with col_tab:
-        st.subheader("📑 Representantes")
-        # 1) Troca Instituição -> Sigla | 2) Nome reduzido (2 palavras)
-        cols_tabela = ["Nome (2)", "Sigla", "Função", "Segmento", "Diretoria"]
-        cols_exist = [c for c in cols_tabela if c in dff.columns]
-        if not cols_exist:
-            st.info("As colunas esperadas não foram encontradas na planilha.")
-        else:
-            tab = dff[cols_exist].rename(columns={"Nome (2)": "Nome"}).sort_values(by="Nome")
-            st.dataframe(tab, use_container_width=True, hide_index=True)
-
-    # --- MAPA (direita) ---
-    with col_map:
-        st.subheader("🗺️ Mapa dos Representantes")
-
-        # Selecionar mapa de fundo
-        tile_option = st.selectbox(
-            "Mapa de fundo",
-            ["CartoDB positron", "OpenStreetMap", "Stamen Terrain", "CartoDB dark_matter", "Esri Satellite"],
-            index=0
-        )
-
-        have_geo = {"Latitude", "Longitude"}.issubset(dff.columns)
-        pontos = dff.dropna(subset=["Latitude", "Longitude"]) if have_geo else pd.DataFrame()
-
-        if pontos.empty:
-            st.info("Sem coordenadas válidas para exibir no mapa.")
-        else:
-            try:
-                center = [
-                    pontos["Latitude"].astype(float).mean(),
-                    pontos["Longitude"].astype(float).mean(),
-                ]
-            except Exception:
-                center = [-5.2, -39.5]
-
-            # cores por segmento
-            seg_unicos = [s for s in pontos["Segmento"].dropna().unique()]
-            palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
-                       "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
-            color_map = {seg: palette[i % len(palette)] for i, seg in enumerate(seg_unicos)}
-            default_color = "#7f7f7f"
-
-            m = folium.Map(location=center, zoom_start=7, tiles=None)
-            # add tile layer according to selection
-            tile_config = {
-                "CartoDB positron": ("https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
-                                     '&copy; <a href="https://carto.com/attributions">CARTO</a>'),
-                "OpenStreetMap": ("OpenStreetMap", '&copy; <a href="https://openstreetmap.org">OSM</a>'),
-                "Stamen Terrain": ("https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png",
-                                   'Map tiles by <a href="http://stamen.com">Stamen</a>'),
-                "CartoDB dark_matter": ("https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
-                                        '&copy; <a href="https://carto.com/attributions">CARTO</a>'),
-                "Esri Satellite": ("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                                   "Tiles &copy; Esri"),
-            }
-            tiles, attr = tile_config[tile_option]
-            folium.TileLayer(tiles=tiles, attr=attr, name=tile_option, control=True).add_to(m)
-
-            # um FeatureGroup por Segmento (para ligar/desligar)
-            groups = {seg: folium.FeatureGroup(name=f"Segmento: {seg}", show=True) for seg in seg_unicos}
-            # fallback para registros sem segmento
-            groups["_sem_segmento"] = folium.FeatureGroup(name="Segmento: (vazio)", show=True)
-
-            for _, row in pontos.iterrows():
-                try:
-                    lat = float(row["Latitude"]); lon = float(row["Longitude"])
-                except Exception:
-                    continue
-
-                segm = row.get("Segmento", "").strip() or "(vazio)"
-                grp_key = segm if segm in groups else ("_sem_segmento" if segm == "(vazio)" else segm)
-                if grp_key not in groups:
-                    groups[grp_key] = folium.FeatureGroup(name=f"Segmento: {segm}", show=True)
-
-                nome_full = row.get("Nome do(a) representante", "N/A")
-                nome_2 = row.get("Nome (2)", nome_full)
-                sigla = row.get("Sigla", row.get("Instituição", "N/A"))
-                func  = row.get("Função", "N/A")
-                mun   = row.get("Município", "N/A")
-                mandato = row.get("Mandato", "N/A")
-                diretoria = row.get("Diretoria", "N/A")
-
-                color = color_map.get(segm, default_color)
-
-                popup = folium.Popup(
-                    f"""
-                    <div style="font-family:Arial; font-size:13px; line-height:1.4;">
-                        <div style="font-weight:700; font-size:14px; color:#2c3e50;">{nome_full}</div>
-                        <div><b>Sigla:</b> {sigla}</div>
-                        <div><b>Função:</b> {func}</div>
-                        <div><b>Segmento:</b> {segm}</div>
-                        <div><b>Diretoria:</b> {diretoria}</div>
-                        <div><b>Município:</b> {mun}</div>
-                        <div><b>Mandato:</b> {mandato}</div>
-                    </div>
-                    """,
-                    max_width=320
-                )
-
-                folium.CircleMarker(
-                    location=[lat, lon],
-                    radius=6,
-                    color=color,
-                    fill=True,
-                    fill_color=color,
-                    fill_opacity=0.9,
-                    tooltip=f"{nome_2} • {sigla}",
-                    popup=popup
-                ).add_to(groups[grp_key])
-
-            # adiciona grupos ao mapa
-            for g in groups.values():
-                g.add_to(m)
-
-            folium.LayerControl(collapsed=False).add_to(m)
-            folium_static(m, width=920, height=560)
-
-    # ===== Gráficos (abaixo da tabela e mapa) =====
-    st.markdown("---")
-    st.subheader("📊 Distribuição dos Representantes")
-
-    # Pizza por Segmento
-    if "Segmento" in dff.columns:
-        seg_counts = (
-            dff["Segmento"].fillna("(vazio)").replace("", "(vazio)").value_counts()
-            .reset_index()
-            .rename(columns={"index": "Segmento", "Segmento": "Contagem"})
-        )
-        fig_pie = px.pie(
-            seg_counts,
-            names="Segmento",
-            values="Contagem",
-            hole=0.35,
-            title="Por Segmento"
-        )
-        fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-        st.plotly_chart(fig_pie, use_container_width=True, config={"displaylogo": False})
-
-    # Barras horizontais por Município
-    if "Município" in dff.columns:
-        mun_counts = (
-            dff["Município"].fillna("(vazio)").replace("", "(vazio)").value_counts()
-            .reset_index()
-            .rename(columns={"index": "Município", "Município": "Contagem"})
-            .sort_values("Contagem", ascending=True)
-        )
-        fig_bar = px.bar(
-            mun_counts,
-            y="Município",
-            x="Contagem",
-            orientation="h",
-            title="Por Município"
-        )
-        fig_bar.update_layout(yaxis_title="Município", xaxis_title="Contagem", bargap=0.2)
-        st.plotly_chart(fig_bar, use_container_width=True, config={"displaylogo": False})
+            st.info("Sem dados para calcular a média.")
+    except Exception as e:
+        st.error(f"Erro ao calcular média: {str(e)}")
+else:
+    st.info("Sem dados para a média.")
