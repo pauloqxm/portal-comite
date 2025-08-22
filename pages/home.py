@@ -9,7 +9,7 @@ def render_home():
     st.markdown(
         """
         <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 20px;">
-            <img src="https://i.ibb.co/4ZBktXXH/logo-portal.jpg" alt="Logo Portal" style="width: 350px;">            
+            <img src="https://i.ibb.co/4ZBktXXH/logo-portal.jpg" alt="Logo Portal" style="width: 680px;">            
         </div>
         <hr style="border: 0; height: 2px; background: #ddd; margin: 20px auto;">
     
@@ -33,6 +33,7 @@ def render_home():
         unsafe_allow_html=True
     )
     st.info("👆 Acesse as outras páginas clicando nas abas no topo da tela.", icon="ℹ️")
+
 
 
 
