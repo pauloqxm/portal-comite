@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from pages import home, acudes, docs, dados, vazoes_dashboard, fale_conosco
+from pages import home, acudes, docs, dados, vazoes_dashboard, fale_conosco, o_comite
 from utils.common import render_header, render_footer
 
 # ---------------- CONFIG GERAL ----------------
@@ -41,6 +41,7 @@ with tab7:
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
 
 
