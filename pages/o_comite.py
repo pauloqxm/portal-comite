@@ -124,7 +124,7 @@ def render_o_comite():
         st.subheader("🗺️ Mapa dos Representantes")
         tile_option = st.selectbox(
             "Mapa de fundo",
-            ["CartoDB positron", "OpenStreetMap", "Stamen Terrain", "CartoDB dark_matter", "Esri Satellite"],
+            ["OpenStreetMap", "CartoDB positron", "Stamen Terrain", "CartoDB dark_matter", "Esri Satellite"],
             index=0
         )
 
