@@ -186,7 +186,7 @@ def render_header():
         <div class="custom-header">
         <div class="header-container">
             <div class="header-brand">
-            <img src="https://i.ibb.co/KpHGQ6qg/LOGOPROTAL.png" class="header-logo" style="width: 45px; height: auto;">
+            <img src="https://i.ibb.co/KpHGQ6qg/LOGOPROTAL.png" class="header-logo" style="width: 50px; height: auto;">
             <div>
                 <div class="header-title">Portal Transparência e Participação</div>
                 <div style="opacity:.9;font-size:13px">📌Comitê da Sub-Bacia do Rio Banabuiu</div>
@@ -412,6 +412,7 @@ def salvar_em_planilha(dados_formulario):
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
         return False
+
 
 
 
