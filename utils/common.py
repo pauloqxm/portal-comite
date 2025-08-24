@@ -186,10 +186,10 @@ def render_header():
         <div class="custom-header">
         <div class="header-container">
             <div class="header-brand">
-            <img src="https://cdn-icons-png.flaticon.com/512/1006/1006363.png" class="header-logo">
+            <img src="https://i.ibb.co/KpHGQ6qg/LOGOPROTAL.png" class="header-logo">
             <div>
-                <div class="header-title">Acompanhamento da Operação</div>
-                <div style="opacity:.9;font-size:13px">📌 Bacia do Banabuiu</div>
+                <div class="header-title">Transparência e Participação</div>
+                <div style="opacity:.9;font-size:13px">📌 Portal do Comitê da Sub-Bacia do Rio Banabuiu</div>
             </div>
             </div>
             <div class="header-links">
@@ -412,6 +412,7 @@ def salvar_em_planilha(dados_formulario):
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
         return False
+
 
 
 
