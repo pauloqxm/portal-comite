@@ -195,7 +195,7 @@ def render_vazoes_dashboard():
     # =====================================================================
     # 📊 Volume acumulado por reservatório
     # =====================================================================
-    st.subheader("📊 Volume acumulado por reservatório")
+    st.subheader("📊 Volume liperado por reservatório")
 
     cols_necessarias = {"Reservatório Monitorado", "Data", "Vazão Operada"}
     tem_cols = cols_necessarias.issubset(set(df_filtrado.columns))
@@ -252,12 +252,12 @@ def render_vazoes_dashboard():
 
             y_max = float(df_volumes["Volume Eixo Y"].max()) if not df_volumes.empty else 1.0
             y_max = y_max * 1.2 if y_max > 0 else 1.0
-            y_title = "Volume acumulado em milhões de m³"
+            y_title = "Volume liberado em milhões de m³"
 
             base = alt.Chart(df_volumes).encode(
                 x=alt.X("Reservatório Monitorado:N", title="Reservatório", sort="-y")
             ).properties(
-                title="Volume acumulado por reservatório",
+                title="Volume total libedado na Operação",
                 height=400
             ).interactive()
 
@@ -423,6 +423,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
