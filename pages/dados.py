@@ -163,15 +163,7 @@ def render_dados():
             index=0, key='map_style_select'
         )
 
-    # ⚡ Controles de desempenho
-    c1, c2 = st.columns([1,1])
-    with c1:
-        fast_mode = st.toggle("⚡ Modo rápido (cache HTML)", value=True,
-                              help="Evita refazer o mapa a cada interação. Recalcula só quando necessário.")
-    with c2:
-        force_refresh = st.button("🔄 Atualizar mapa", use_container_width=True)
-
-    # Assinatura do mapa (para decidir quando recalcular)
+# Assinatura do mapa (para decidir quando recalcular)
     def build_map_signature(dfm: pd.DataFrame, tile: str, classes) -> int:
         cols = [c for c in ['Latitude','Longitude','Classificação','Açude','Município'] if c in dfm.columns]
         if not cols:
@@ -529,3 +521,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
