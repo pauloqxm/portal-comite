@@ -1,18 +1,15 @@
-
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import folium
 import json
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium  # ✅ usar st_folium em vez de folium_static
 from folium.plugins import Fullscreen, MousePosition
 from utils.common import load_geojson_data
 
 st.set_page_config(layout="wide")
 
 def render_dados():
-    
     st.title("📈 Situação das Sedes Municipais")
     st.markdown("""
 <div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
@@ -34,14 +31,13 @@ def render_dados():
         if 'Coordendas' in df.columns:
             df.rename(columns={'Coordendas': 'Coordenadas'}, inplace=True)
     except Exception as e:
-        st.error(f"Erro ao carregar os dados da planilha. Verifique se o link está correto e se a planilha está pública. Detalhes do erro: {e}")
+        st.error(f"Erro ao carregar os dados da planilha. Verifique o link/permits. Detalhes: {e}")
         return
-
     if df.empty:
-        st.info("A planilha de simulações está vazia. Por favor, verifique os dados.")
+        st.info("A planilha de simulações está vazia.")
         return
 
-# ---------- Integração das opções de Classificação com o GeoJSON ----------
+    # ---------- Integração das opções de Classificação com o GeoJSON ----------
     geojson_data = load_geojson_data()
     geojson_situa = geojson_data.get('geojson_situa', {})
 
@@ -50,15 +46,13 @@ def render_dados():
         if isinstance(gj, dict) and gj.get('type') == 'FeatureCollection':
             for f in gj.get('features', []):
                 props = (f.get('properties') or {})
-                for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
+                for k in ['Classificação','classificacao','CLASSIFICACAO','classificação','situacao','SITUACAO']:
                     if k in props and pd.notna(props[k]):
-                        classes.add(str(props[k]).strip())
-                        break
+                        classes.add(str(props[k]).strip()); break
         return classes
 
     def _get_classificacao_from_props(props: dict):
-        """Obtém a classificação de um feature do GeoJSON a partir de suas propriedades"""
-        for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
+        for k in ['Classificação','classificacao','CLASSIFICACAO','classificação','situacao','SITUACAO']:
             if k in props and pd.notna(props[k]):
                 return str(props[k]).strip()
         return None
@@ -86,7 +80,6 @@ def render_dados():
         st.markdown('<div class="expander-rounded">', unsafe_allow_html=True)
         with st.expander("☰ Filtros (clique para expandir)", expanded=True):
             st.markdown('<div class="filter-card"><div class="filter-title">Filtros de Visualização</div>', unsafe_allow_html=True)
-
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 opcoes_acudes = sorted(df["Açude"].dropna().unique().tolist())
@@ -99,15 +92,9 @@ def render_dados():
             with col4:
                 datas_validas = df["Data"]
                 if not datas_validas.empty:
-                    data_min = datas_validas.min().date()
-                    data_max = datas_validas.max().date()
-                    periodo = st.date_input(
-                        "Período",
-                        value=(data_min, data_max),
-                        min_value=data_min,
-                        max_value=data_max,
-                        format="DD/MM/YYYY"
-                    )
+                    data_min, data_max = datas_validas.min().date(), datas_validas.max().date()
+                    periodo = st.date_input("Período", value=(data_min, data_max),
+                                            min_value=data_min, max_value=data_max, format="DD/MM/YYYY")
                 else:
                     periodo = None
             st.markdown("</div>", unsafe_allow_html=True)
@@ -115,51 +102,31 @@ def render_dados():
 
     # ---------- Aplicação dos filtros ----------
     def padronizar_classificacao(valor):
-        """Padroniza os valores de classificação para comparação"""
-        if pd.isna(valor):
-            return "sem classificação"
+        if pd.isna(valor): return "sem classificação"
         valor = str(valor).strip().lower()
-        if "fora" in valor and "criticidade" in valor:
-            return "fora de criticidade"
+        if "fora" in valor and "criticidade" in valor: return "fora de criticidade"
         return valor
 
-    # Aplica os filtros de forma consistente
     dff = df.copy()
-
-    # Filtro de Açudes
     if acudes_sel:
         dff = dff[dff["Açude"].isin(acudes_sel)]
-
-    # Filtro de Municípios
     if municipios_sel:
         dff = dff[dff["Município"].isin(municipios_sel)]
-
-    # Filtro de Classificação (com tratamento especial para "Fora de Criticidade")
     if classificacao_sel:
-        # Padroniza os valores selecionados
         classificacoes_filtradas = [padronizar_classificacao(c) for c in classificacao_sel]
-        
-        # Aplica o filtro com valores padronizados
         dff = dff[dff["Classificação"].apply(padronizar_classificacao).isin(classificacoes_filtradas)]
-
-    # Filtro de Período
     if periodo:
-        if len(periodo) == 1:
-            ini = fim = pd.to_datetime(periodo[0])
-        else:
-            ini, fim = [pd.to_datetime(d) for d in periodo]
+        ini, fim = (pd.to_datetime(periodo[0]), pd.to_datetime(periodo[-1]))
         dff = dff[(dff["Data"] >= ini) & (dff["Data"] <= fim)]
-
     if dff.empty:
         st.info("Não há dados para os filtros selecionados.")
         return
 
-    # Latitude/Longitude a partir de "Coordenadas"
+    # Latitude/Longitude
     if 'Coordenadas' in dff.columns:
         try:
-            dff[['Latitude', 'Longitude']] = dff['Coordenadas'].astype(str).str.split(',', expand=True).astype(float)
+            dff[['Latitude','Longitude']] = dff['Coordenadas'].astype(str).str.split(',', expand=True).astype(float)
         except Exception:
-            # fallback mais tolerante
             latlon = dff['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
             dff['Latitude'] = pd.to_numeric(latlon[0], errors='coerce')
             dff['Longitude'] = pd.to_numeric(latlon[1], errors='coerce')
@@ -168,39 +135,19 @@ def render_dados():
 
     dff = dff.sort_values(["Açude", "Data"])
 
-# ===================== Mapa dos Açudes =====================
+    # ===================== 🌍 Mapa dos Açudes (container + separador enxuto) =====================
     st.subheader("🌍 Mapa dos Açudes")
-
-    # CSS para ocupar largura total
-    st.markdown("""
-    <style>
-    section.main > div.block-container {
-      max-width: 100% !important;
-      padding-left: 0 !important;
-      padding-right: 0 !important;
-    }
-    .stIFrame iframe, iframe, .folium-map {
-      width: 100% !important;
-      height: 78vh !important; /* altura em viewport height */
-      display: block;
-      border: none;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
     with st.expander("Mapas de Fundo", expanded=False):
         tile_option = st.selectbox(
             "Estilo do Mapa:",
-            ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
-            index=0,
-            key='map_style_select'
+            ["OpenStreetMap","Stamen Terrain","Stamen Toner","CartoDB positron","CartoDB dark_matter","Esri Satellite"],
+            index=0, key='map_style_select'
         )
 
-    # GeoJSONs adicionais
     geojson_bacia = geojson_data.get('geojson_bacia', {})
     geojson_sedes = geojson_data.get('geojson_sedes', {})
 
-    # Configurações dos tiles
     tile_config = {
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
         "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
@@ -210,107 +157,87 @@ def render_dados():
         "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
     }
 
-    # Configuração inicial do mapa (será sobrescrita pelo fit_bounds da bacia)
-    if not dff.empty and {'Latitude', 'Longitude'}.issubset(dff.columns):
+    # Centro inicial
+    if not dff.empty and {'Latitude','Longitude'}.issubset(dff.columns):
         start_center = [float(dff['Latitude'].mean()), float(dff['Longitude'].mean())]
     else:
-        start_center = [-5.2, -39.5]  # Coordenadas padrão
+        start_center = [-5.2, -39.5]
 
+    # ---- montar mapa
     m = folium.Map(location=start_center, zoom_start=9, tiles=None)
-    folium.TileLayer(
-        tiles=tile_config[tile_option]["tiles"],
-        attr=tile_config[tile_option]["attr"],
-        name=tile_option
-    ).add_to(m)
+    folium.TileLayer(tiles=tile_config[tile_option]["tiles"],
+                     attr=tile_config[tile_option]["attr"], name=tile_option).add_to(m)
 
-    # --- Helpers ---
-    def padronizar_classificacao(classificacao):
+    # helpers de classificação
+    def padronizar_classificacao_map(classificacao):
         c = str(classificacao or "").strip().lower()
-        c = (c
-            .replace("á","a").replace("ã","a").replace("â","a")
-            .replace("é","e").replace("ê","e")
-            .replace("í","i").replace("î","i")
-            .replace("ó","o").replace("ô","o")
-            .replace("ú","u").replace("û","u")
-            .replace("ç","c"))
-        if c == "normal" or ("fora" in c and "criticidade" in c):
-            return "fora de criticidade"
-        if "alta" in c:
-            return "criticidade alta"
-        if "media" in c:
-            return "criticidade média"
-        if "baixa" in c:
-            return "criticidade baixa"
-        if "sem" in c and "class" in c:
-            return "sem classificação"
+        c = (c.replace("á","a").replace("ã","a").replace("â","a")
+               .replace("é","e").replace("ê","e")
+               .replace("í","i").replace("î","i")
+               .replace("ó","o").replace("ô","o")
+               .replace("ú","u").replace("û","u")
+               .replace("ç","c"))
+        if c == "normal" or ("fora" in c and "criticidade" in c): return "fora de criticidade"
+        if "alta" in c:  return "criticidade alta"
+        if "media" in c: return "criticidade média"
+        if "baixa" in c: return "criticidade baixa"
+        if "sem" in c and "class" in c: return "sem classificação"
         return c or "sem classificação"
 
     def get_classification_color(classificacao):
-        c = padronizar_classificacao(classificacao)
-        color_map = {
+        c = padronizar_classificacao_map(classificacao)
+        return {
             "fora de criticidade": "#8DCC90",
             "criticidade alta":    "#E24F42",
             "criticidade média":   "#ECC116",
             "criticidade baixa":   "#F4FA4A",
             "sem classificação":   "#999999"
-        }
-        return color_map.get(c, "#999999")
+        }.get(c, "#999999")
 
-    # --- Camada da Bacia + centralização (fit_bounds) ---
     def _compute_bounds_from_geojson(gj: dict):
-        """Fallback para calcular bounds caso get_bounds não esteja disponível."""
         try:
             if not isinstance(gj, dict) or gj.get("type") != "FeatureCollection":
                 return None
             lats, lons = [], []
             for feat in gj.get("features", []):
                 geom = (feat or {}).get("geometry", {}) or {}
-                gtype = geom.get("type")
-                coords = geom.get("coordinates", [])
+                gtype = geom.get("type"); coords = geom.get("coordinates", [])
                 if gtype == "Polygon":
                     for ring in coords:
-                        for lon, lat in ring:
-                            lats.append(lat); lons.append(lon)
+                        for lon, lat in ring: lats.append(lat); lons.append(lon)
                 elif gtype == "MultiPolygon":
                     for poly in coords:
                         for ring in poly:
-                            for lon, lat in ring:
-                                lats.append(lat); lons.append(lon)
+                            for lon, lat in ring: lats.append(lat); lons.append(lon)
                 elif gtype == "LineString":
-                    for lon, lat in coords:
-                        lats.append(lat); lons.append(lon)
+                    for lon, lat in coords: lats.append(lat); lons.append(lon)
                 elif gtype == "MultiLineString":
                     for line in coords:
-                        for lon, lat in line:
-                            lats.append(lat); lons.append(lon)
+                        for lon, lat in line: lats.append(lat); lons.append(lon)
                 elif gtype == "Point" and len(coords) >= 2:
                     lons.append(coords[0]); lats.append(coords[1])
                 elif gtype == "MultiPoint":
-                    for lon, lat in coords:
-                        lats.append(lat); lons.append(lon)
+                    for lon, lat in coords: lats.append(lat); lons.append(lon)
             if lats and lons:
                 return [[min(lats), min(lons)], [max(lats), max(lons)]]
         except Exception:
             return None
         return None
 
+    # Bacia + fit_bounds
     if geojson_bacia:
         gj_bacia = folium.GeoJson(
-            geojson_bacia,
-            name="Bacia do Banabuiú",
-            style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.1},
+            geojson_bacia, name="Bacia do Banabuiú",
+            style_function=lambda x: {"color":"blue","weight":2,"fillOpacity":0.1},
             tooltip=folium.GeoJsonTooltip(fields=["DESCRICA1"], aliases=["Bacia:"])
         ).add_to(m)
-
-        # Centraliza o mapa nos limites da bacia
         try:
-            bounds = gj_bacia.get_bounds()  # disponível no Folium >= 0.14
+            bounds = gj_bacia.get_bounds()
         except Exception:
             bounds = _compute_bounds_from_geojson(geojson_bacia)
-        if bounds:
-            m.fit_bounds(bounds)
+        if bounds: m.fit_bounds(bounds)
 
-    # --- Sedes Municipais ---
+    # Sedes Municipais
     if geojson_sedes and isinstance(geojson_sedes, dict) and "features" in geojson_sedes:
         sedes_layer = folium.FeatureGroup(name="Sedes Municipais", show=True)
         for feature in geojson_sedes["features"]:
@@ -323,38 +250,30 @@ def render_dados():
                     lat, lon = float(coords[1]), float(coords[0])
                     folium.Marker(
                         [lat, lon],
-                        icon=folium.CustomIcon(
-                            "https://cdn-icons-png.flaticon.com/512/854/854878.png",
-                            icon_size=(25, 25)
-                        ),
+                        icon=folium.CustomIcon("https://cdn-icons-png.flaticon.com/512/854/854878.png", icon_size=(25, 25)),
                         tooltip=nome
                     ).add_to(sedes_layer)
                 except Exception:
                     continue
         sedes_layer.add_to(m)
 
-    # --- Situação da Bacia (filtrada) ---
-    def _get_classificacao_from_props(props: dict):
-        if not isinstance(props, dict):
-            return None
-        for k in ['Classificação', 'classificacao', 'CLASSIFICACAO', 'classificação', 'situacao', 'SITUACAO']:
-            if k in props and pd.notna(props[k]):
-                return padronizar_classificacao(props[k])
+    # Situação (GeoJSON filtrado pelos filtros da página)
+    def _get_classificacao_from_props_map(props: dict):
+        if not isinstance(props, dict): return None
+        for k in ['Classificação','classificacao','CLASSIFICACAO','classificação','situacao','SITUACAO']:
+            if k in props and pd.notna(props[k]): return padronizar_classificacao_map(props[k])
         return None
 
     def filtrar_geojson_por_classificacao(geojson_fc, classes_sel):
-        if not geojson_fc or geojson_fc.get('type') != 'FeatureCollection':
-            return {}
+        if not geojson_fc or geojson_fc.get('type') != 'FeatureCollection': return {}
         sel_lower = {str(c).lower() for c in (classes_sel or [])}
         feats = []
         for f in geojson_fc.get('features', []):
-            cls = _get_classificacao_from_props(f.get('properties', {}))
+            cls = _get_classificacao_from_props_map(f.get('properties', {}))
             if cls is None:
-                if {'sem classificação', 'sem classificacao'} & sel_lower:
-                    feats.append(f)
+                if {'sem classificação','sem classificacao'} & sel_lower: feats.append(f)
             else:
-                if cls.lower() in sel_lower:
-                    feats.append(f)
+                if cls.lower() in sel_lower: feats.append(f)
         return {'type': 'FeatureCollection', 'features': feats} if feats else {}
 
     geojson_situa_filtrado = filtrar_geojson_por_classificacao(geojson_situa, classificacao_sel)
@@ -364,24 +283,17 @@ def render_dados():
             geojson_situa_filtrado,
             style_function=lambda feature: {
                 'fillColor': get_classification_color(feature.get('properties', {}).get('Classificação')),
-                'color': '#555555',
-                'weight': 1.5,
-                'fillOpacity': 0.7,
-                'opacity': 0.9
+                'color': '#555555','weight': 1.5,'fillOpacity': 0.7,'opacity': 0.9
             },
-            tooltip=folium.GeoJsonTooltip(
-                fields=['Classificação'],
-                aliases=['Classificação:'],
-                sticky=True
-            )
+            tooltip=folium.GeoJsonTooltip(fields=['Classificação'], aliases=['Classificação:'], sticky=True)
         ).add_to(situa_group)
         situa_group.add_to(m)
 
-    # --- Marcadores dos Açudes ---
-    if not dff.empty and {'Latitude', 'Longitude'}.issubset(dff.columns):
+    # Pinos dos Açudes
+    if not dff.empty and {'Latitude','Longitude'}.issubset(dff.columns):
         for _, row in dff.iterrows():
             try:
-                lat = float(row['Latitude']); lon = float(row['Longitude'])
+                lat, lon = float(row['Latitude']), float(row['Longitude'])
             except Exception:
                 continue
             classificacao = row.get('Classificação', 'Sem classificação')
@@ -397,206 +309,100 @@ def render_dados():
             </div>
             """
             folium.CircleMarker(
-                location=[lat, lon],
-                radius=6,
-                color=color_marker,
-                fill=True,
-                fill_color=color_marker,
-                fill_opacity=0.9,
-                tooltip=row.get('Açude', 'N/A'),
-                popup=folium.Popup(popup_html, max_width=300)
+                location=[lat, lon], radius=6, color=color_marker, fill=True, fill_color=color_marker,
+                fill_opacity=0.9, tooltip=row.get('Açude', 'N/A'), popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
 
-    # --- Controles e render ---
     Fullscreen().add_to(m)
     MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
 
-    folium_static(m, width=1400, height=650)
+    # ✅ render mapa: largura total + altura 450 (sem CSS extra) 
+    st_folium(m, height=700, width="100%", use_container_width=True)
 
-    # Legenda (igual ao seu código)
+    # Legenda
     st.markdown("""
     <style>
-    .map-legend-container {
-        position: relative;
-        margin-top: -40px;
-        margin-bottom: 20px;
-        z-index: 1000;
-    }
-    .map-legend {
-        background: white;
-        padding: 10px 15px;
-        border-radius: 5px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        border: 1px solid #eee;
-        display: inline-block;
-        margin: 0 auto;
-    }
-    .legend-items {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 15px;
-        justify-content: center;
-    }
-    .legend-item {
-        display: flex;
-        align-items: center;
-    }
-    .legend-color {
-        width: 18px;
-        height: 18px;
-        margin-right: 8px;
-        border: 1px solid #555;
-        border-radius: 3px;
-    }
-    .legend-label {
-        font-size: 13px;
-        font-family: Arial, sans-serif;
-        color: #333;
-    }
+    .map-legend-container { position: relative; margin-top: -20px; margin-bottom: 12px; z-index: 1000; }
+    .map-legend { background: white; padding: 10px 15px; border-radius: 5px;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.15); border: 1px solid #eee; display: inline-block; }
+    .legend-items { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; }
+    .legend-item { display: flex; align-items: center; }
+    .legend-color { width: 18px; height: 18px; margin-right: 8px; border: 1px solid #555; border-radius: 3px; }
+    .legend-label { font-size: 13px; font-family: Arial, sans-serif; color: #333; }
     </style>
-
     <div class="map-legend-container">
         <div class="map-legend">
             <div class="legend-items">
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #E24F42;"></div>
-                    <span class="legend-label">Criticidade Alta (até 12/2025)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #ECC116;"></div>
-                    <span class="legend-label">Criticidade Média (até 06/2026)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #F4FA4A;"></div>
-                    <span class="legend-label">Criticidade Baixa (até 12/2026)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #8DCC90;"></div>
-                    <span class="legend-label">Fora de Criticidade (após 12/2026)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #999999;"></div>
-                    <span class="legend-label">Sem classificação</span>
-                </div>
+                <div class="legend-item"><div class="legend-color" style="background-color:#E24F42;"></div><span class="legend-label">Criticidade Alta (até 12/2025)</span></div>
+                <div class="legend-item"><div class="legend-color" style="background-color:#ECC116;"></div><span class="legend-label">Criticidade Média (até 06/2026)</span></div>
+                <div class="legend-item"><div class="legend-color" style="background-color:#F4FA4A;"></div><span class="legend-label">Criticidade Baixa (até 12/2026)</span></div>
+                <div class="legend-item"><div class="legend-color" style="background-color:#8DCC90;"></div><span class="legend-label">Fora de Criticidade (após 12/2026)</span></div>
+                <div class="legend-item"><div class="legend-color" style="background-color:#999999;"></div><span class="legend-label">Sem classificação</span></div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # ===================== KPIs =====================
-    st.container().empty() 
+
+    # 🔻 separador enxuto (substitui st.divider e evita espaço morto)
     st.markdown("---")
+
+    # ===================== KPIs =====================
     st.subheader("📊 Indicadores de Desempenho (KPIs)")
     st.markdown("""
     <style>
-    .kpi-card {
-        background-color: #f0f4f8;
-        border: 1px solid #d9e2eb;
-        border-radius: 10px;
-        padding: 20px;
-        text-align: center;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        transition: transform 0.2s;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
+    .kpi-card { background-color:#f0f4f8; border:1px solid #d9e2eb; border-radius:10px;
+                padding:20px; text-align:center; box-shadow:0 4px 8px rgba(0,0,0,0.1);
+                transition:transform .2s; height:100%; display:flex; flex-direction:column; justify-content:center; }
     .kpi-card:hover { transform: translateY(-5px); }
-    .kpi-label { font-size: 16px; color: #5a7d9a; font-weight: bold; margin-bottom: 5px; }
-    .kpi-value { font-size: 28px; font-weight: bold; color: #2c3e50; }
+    .kpi-label { font-size:16px; color:#5a7d9a; font-weight:bold; margin-bottom:5px; }
+    .kpi-value { font-size:28px; font-weight:bold; color:#2c3e50; }
     </style>
     """, unsafe_allow_html=True)
 
     kpi_cols = st.columns(4)
-    
+
     # KPI: Vazão Simulada (m³/h)
     if 'Liberação (m³/s)' in dff.columns:
         with kpi_cols[0]:
             try:
-                # Converte valores para numérico
-                dff["Liberação (m³/s)"] = pd.to_numeric(
-                    dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'),
-                    errors='coerce'
-                )
-                
-                # Encontra o dia MAIS ANTIGO
+                dff["Liberação (m³/s)"] = pd.to_numeric(dff["Liberação (m³/s)"].astype(str).str.replace(',', '.'), errors='coerce')
                 data_mais_antiga = dff['Data'].min()
-                
-                # Filtra os dados apenas para o dia mais antigo
                 df_dia_antigo = dff[dff['Data'] == data_mais_antiga]
-                
-                # Calcula a liberação para UMA HORA (m³/s → m³/h)
-                primeira_liberacao_m3s = df_dia_antigo["Liberação (m³/s)"].iloc[0]  # Pega o primeiro valor
-                liberacao_m3h = primeira_liberacao_m3s * 3600  # Conversão para m³/h
-                
+                primeira_liberacao_m3s = df_dia_antigo["Liberação (m³/s)"].iloc[0]
+                liberacao_m3h = primeira_liberacao_m3s * 3600
                 st.markdown(f"""
                 <div class="kpi-card">
                     <div class="kpi-label">Vazão Simulada (m³/h)</div>
                     <div class="kpi-value">{liberacao_m3h:,.2f}</div>
                 </div>
                 """, unsafe_allow_html=True)
-                
             except Exception as e:
                 st.warning(f"Não foi possível calcular a liberação. Erro: {str(e)}")
     else:
         with kpi_cols[0]:
-            st.warning("Coluna 'Liberação (m³/s)' não encontrada. KPI não disponível.")
+            st.warning("Coluna 'Liberação (m³/s)' não encontrada.")
 
-    # KPI: Data Inicial
+    # KPI: Datas e dias
     with kpi_cols[1]:
-        if not dff.empty:
-            primeira_data = dff["Data"].min().strftime('%d/%m/%Y')
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-label">Data Inicial</div>
-                <div class="kpi-value">{primeira_data}</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="kpi-card">
-                <div class="kpi-label">Data Inicial</div>
-                <div class="kpi-value">N/A</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # KPI: Data Final
+        st.markdown(f"""
+        <div class="kpi-card"><div class="kpi-label">Data Inicial</div>
+        <div class="kpi-value">{(dff["Data"].min().strftime('%d/%m/%Y') if not dff.empty else 'N/A')}</div></div>
+        """, unsafe_allow_html=True)
     with kpi_cols[2]:
-        if not dff.empty and 'Data' in dff.columns:
-            ultima_data = dff['Data'].max().strftime('%d/%m/%Y')
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-label">Data Final</div>
-                <div class="kpi-value">{ultima_data}</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="kpi-card">
-                <div class="kpi-label">Data Final</div>
-                <div class="kpi-value">N/A</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # KPI: Dias do Período
+        st.markdown(f"""
+        <div class="kpi-card"><div class="kpi-label">Data Final</div>
+        <div class="kpi-value">{(dff['Data'].max().strftime('%d/%m/%Y') if ('Data' in dff.columns and not dff.empty) else 'N/A')}</div></div>
+        """, unsafe_allow_html=True)
     with kpi_cols[3]:
         if 'Data' in dff.columns and not dff['Data'].isna().all():
             dias = (dff["Data"].max() - dff["Data"].min()).days
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-label">Dias do Período</div>
-                <div class="kpi-value">{dias}</div>
-            </div>
-            """, unsafe_allow_html=True)
         else:
-            st.markdown("""
-            <div class="kpi-card">
-                <div class="kpi-label">Dias do Período</div>
-                <div class="kpi-value">N/A</div>
-            </div>
-            """, unsafe_allow_html=True)
+            dias = "N/A"
+        st.markdown(f"""
+        <div class="kpi-card"><div class="kpi-label">Dias do Período</div>
+        <div class="kpi-value">{dias}</div></div>
+        """, unsafe_allow_html=True)
 
     # ===================== Gráfico de Cotas =====================
     st.markdown("---")
@@ -607,31 +413,22 @@ def render_dados():
         fig_cotas = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
-            fig_cotas.add_trace(go.Scatter(
-                x=base["Data"], y=base["Cota Simulada (m)"],
-                mode="lines+markers", name=f"{acude} - Cota Simulada (m)",
-                hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
-            ))
-            fig_cotas.add_trace(go.Scatter(
-                x=base["Data"], y=base["Cota Realizada (m)"],
-                mode="lines+markers", name=f"{acude} - Cota Realizada (m)",
-                hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"
-            ))
-        fig_cotas.update_layout(
-            template="plotly_white",
-            margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-            xaxis_title="Data",
-            yaxis=dict(title="Cota (m)", tickformat=".2f"),
-            height=480
-        )
+            fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Simulada (m)"],
+                                           mode="lines+markers", name=f"{acude} - Cota Simulada (m)",
+                                           hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
+            fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Realizada (m)"],
+                                           mode="lines+markers", name=f"{acude} - Cota Realizada (m)",
+                                           hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
+        fig_cotas.update_layout(template="plotly_white", margin=dict(l=10,r=10,t=10,b=10),
+                                legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
+                                xaxis_title="Data", yaxis=dict(title="Cota (m)", tickformat=".2f"), height=480)
         st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
     else:
-        st.info("Gráfico de Cotas não disponível. Colunas 'Cota Simulada (m)' ou 'Cota Realizada (m)' não encontradas.")
+        st.info("Gráfico de Cotas não disponível. Colunas ausentes.")
 
     # ===================== Gráfico de Volume =====================
     st.subheader("📈 Volume (hm³)")
-    if 'Volume(m³)' in dff.columns and 'Volume (%)' in dff.columns and 'Volume Observado (m³)' in dff.columns:
+    if {'Volume(m³)','Volume (%)','Volume Observado (m³)'} <= set(dff.columns):
         dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Volume (%)"] = pd.to_numeric(dff["Volume (%)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Volume Observado (m³)"] = pd.to_numeric(dff["Volume Observado (m³)"].astype(str).str.replace(',', '.'), errors='coerce')
@@ -640,39 +437,19 @@ def render_dados():
         fig_vol = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
-            fig_vol.add_trace(go.Scatter(
-                x=base["Data"], y=base["Volume (hm³)"],
-                mode="lines+markers",
-                name=f"{acude} - Vol. Simulado (hm³)",
-                hovertemplate="""
-                    <b>%{x|%d/%m/%Y}</b><br>
-                    <b>Vol. Simulado:</b> %{y:,.2f} hm³<br>
-                    <b>Vol. Percentual:</b> %{customdata:,.2f}%<br>
-                    <extra></extra>
-                """,
-                customdata=base["Volume (%)"]
-            ))
-            fig_vol.add_trace(go.Scatter(
-                x=base["Data"], y=base["Volume Observado (hm³)"],
-                mode="lines+markers",
-                name=f"{acude} - Vol. Observado (hm³)",
-                hovertemplate="""
-                    <b>%{x|%d/%m/%Y}</b><br>
-                    <b>Vol. Observado:</b> %{y:,.2f} hm³<br>
-                    <extra></extra>
-                """
-            ))
-        fig_vol.update_layout(
-            template="plotly_white",
-            margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-            xaxis_title="Data",
-            yaxis_title="Volume (hm³)",
-            height=420
-        )
+            fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume (hm³)"],
+                                         mode="lines+markers", name=f"{acude} - Vol. Simulado (hm³)",
+                                         hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Simulado: %{y:,.2f} hm³<br><b>Vol. Percentual:</b> %{customdata:,.2f}%<extra></extra>",
+                                         customdata=base["Volume (%)"]))
+            fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume Observado (hm³)"],
+                                         mode="lines+markers", name=f"{acude} - Vol. Observado (hm³)",
+                                         hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Observado: %{y:,.2f} hm³<br><extra></extra>"))
+        fig_vol.update_layout(template="plotly_white", margin=dict(l=10,r=10,t=10,b=10),
+                              legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
+                              xaxis_title="Data", yaxis_title="Volume (hm³)", height=420)
         st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
     else:
-        st.info("Gráfico de Volume não disponível. Verifique se as colunas 'Volume(m³)', 'Volume (%)' e 'Volume Observado (m³)' existem na planilha.")
+        st.info("Gráfico de Volume não disponível. Verifique colunas na planilha.")
 
     # ===================== Tabela =====================
     st.markdown("---")
@@ -684,10 +461,10 @@ def render_dados():
             'Volume (%)','Evapor. Parcial(mm)','Cota Interm. (m)',
             'Liberação (m³/s)','Liberação (m³)','Classificação','Coordenadas'
         ]
-        colunas_existentes = [col for col in colunas_tabela if col in dff.columns]
+        colunas_existentes = [c for c in colunas_tabela if c in dff.columns]
         dff_tabela = dff[colunas_existentes]
         st.dataframe(
-            dff_tabela.sort_values(["Açude", "Data"], ascending=[True, False]),
+            dff_tabela.sort_values(["Açude","Data"], ascending=[True, False]),
             use_container_width=True,
             column_config={
                 "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
@@ -697,6 +474,6 @@ def render_dados():
                 "Volume Observado (m³)": st.column_config.NumberColumn(format="%.2f"),
                 "Volume (%)": st.column_config.NumberColumn(format="%.2f"),
                 "Liberação (m³/s)": st.column_config.NumberColumn(format="%.2f"),
-                "Liberação (m³)": st.column_config.NumberColumn(format="%.2f")
+                "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
