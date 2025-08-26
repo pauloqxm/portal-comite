@@ -180,8 +180,8 @@ def render_acudes():
     else:
         st.warning("Não há reservatórios com os filtros aplicados.")
 
-    # ===================== Tabela Interativa =====================
-    st.container().empty() 
+# ===================== Tabela Interativa =====================
+    
     st.markdown("---")    
     st.subheader("📊 Dados Detalhados Interativos")
     if not df_filtrado.empty:
@@ -236,6 +236,7 @@ def render_acudes():
             st.download_button(label="Baixar dados completos (CSV)", data=df_filtrado.drop(columns=["Cor", "Status", "TextColor"]).to_csv(index=False, encoding="utf-8-sig", sep=";"), file_name=f"reservatorios_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
     else:
         st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.", icon="⚠️")
+
 
 
 
