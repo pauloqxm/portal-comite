@@ -185,8 +185,21 @@ def render_docs():
             )["Vazão (l/s)"].mean()
             
             if not df_grouped.empty:
-                # Ordena por vazão total para o eixo X
-                df_grouped_total = df_grouped.groupby("Operação")["Vazão (l/s)"].sum().sort_values(ascending=False).index
+                # ORDENAÇÃO CRONOLÓGICA - Extrai o número da operação e ordena
+                df_grouped['Numero_Operacao'] = (
+                    df_grouped['Operação']
+                    .str.extract(r'(\d+)')  # Extrai apenas os números
+                    .astype(float)  # Converte para numérico
+                )
+                
+                # Ordena pelo número da operação (cronologicamente)
+                df_grouped = df_grouped.sort_values('Numero_Operacao')
+                
+                # Remove a coluna auxiliar
+                df_grouped = df_grouped.drop('Numero_Operacao', axis=1)
+                
+                # Obtém a ordem cronológica das operações
+                operacoes_ordenadas = df_grouped['Operação'].unique()
                 
                 fig = go.Figure()
 
@@ -219,7 +232,7 @@ def render_docs():
                         hovertemplate="<b>Operação: %{x}</b><br>Reservatório: "+reservatorio+"<br>Vazão: %{y:.1f} l/s<extra></extra>"
                     ))
                 
-                # Layout otimizado
+                # Layout otimizado com ordenação cronológica
                 fig.update_layout(
                     barmode='stack', # Define o modo empilhado para todos os traces
                     template="plotly_white",
@@ -228,8 +241,8 @@ def render_docs():
                         title="Operação",
                         tickangle=-45,
                         tickfont=dict(size=12),
-                        categoryorder="array",
-                        categoryarray=df_grouped_total
+                        categoryorder="array",  # Define ordenação personalizada
+                        categoryarray=operacoes_ordenadas  # Usa a ordem cronológica
                     ),
                     yaxis=dict(
                         title="Vazão Média Acumulada (l/s)",
@@ -249,6 +262,7 @@ def render_docs():
             st.error(f"Erro ao processar os dados: {str(e)}")
     else:
         st.info("Dados insuficientes. Verifique se as colunas 'Operação', 'Vazão média' e 'Reservatório/Sistema' existem no dataset.")
+
 
 
 
