@@ -227,7 +227,7 @@ def render_acudes():
             MousePosition(position="bottomleft").add_to(m)
 
             # ✅ usar st_folium com altura fixa (sem width em string)
-            folium_static(m, width=1200, height=500)
+            st_folium(m, height=520, width="100%")
         else:
             st.warning("Não há reservatórios com os filtros aplicados.")
 
@@ -335,5 +335,6 @@ def render_acudes():
                 )
         else:
             st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.", icon="⚠️")
+
 
 
