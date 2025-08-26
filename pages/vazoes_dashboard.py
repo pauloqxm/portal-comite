@@ -352,7 +352,7 @@ def render_vazoes_dashboard():
             folium.LayerControl(collapsed=True, position="topright").add_to(m)
 
             # ✅ mapa com menos altura e largura total, reduzindo o “gap” visual
-            st_folium(m, height=450, width="100%", use_container_width=True)
+            st_folium(m, height=700, width="100%", use_container_width=True)
         else:
             st.info("Nenhum ponto com coordenadas disponíveis para plotar no mapa.")
 
@@ -558,3 +558,4 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
