@@ -5,8 +5,17 @@ import json
 import base64
 from datetime import datetime
 from folium.plugins import Fullscreen, MousePosition
-from streamlit_folium import st_folium  # ✅ usar st_folium
+from streamlit.components.v1 import html as st_html
 from utils.common import load_reservatorios_data, load_geojson_data
+
+# ---- caches leves para dados externos ----
+@st.cache_data(ttl=900)
+def _load_reservatorios_cached():
+    return load_reservatorios_data()
+
+@st.cache_data(ttl=1800)
+def _load_geojson_cached():
+    return load_geojson_data()
 
 def render_acudes():
     st.title("🗺️ Açudes Monitorados")
@@ -24,7 +33,7 @@ def render_acudes():
         unsafe_allow_html=True,
     )
 
-    df_full = load_reservatorios_data()
+    df_full = _load_reservatorios_cached()
     if df_full.empty:
         st.warning("Não foi possível carregar os dados dos reservatórios.")
         return
@@ -68,7 +77,6 @@ def render_acudes():
     if len(date_range) != 2:
         st.warning("Selecione um intervalo de datas válido para prosseguir.")
         return
-
     start_date, end_date = date_range
 
     # --- Aplicar filtros ---
@@ -81,14 +89,22 @@ def render_acudes():
         (df_full["Reservatório"].astype(str).isin(reservatorio_filtro)) &
         (df_full["Percentual"].between(perc_range[0], perc_range[1], inclusive="both"))
     )
-    df_filtrado = df_full.loc[mask].copy()
-
+    dff = df_full.loc[mask].copy()
     if municipio_filtro != "Todos":
-        df_filtrado = df_filtrado[df_filtrado["Município"].astype(str) == municipio_filtro].copy()
+        dff = dff[dff["Município"].astype(str) == municipio_filtro].copy()
 
-    df_mapa = df_filtrado.sort_values("Data de Coleta", ascending=False).drop_duplicates(subset=["Reservatório"]).copy()
+    # linha mais recente por reservatório para o mapa
+    df_mapa = (
+        dff.sort_values("Data de Coleta", ascending=False)
+           .drop_duplicates(subset=["Reservatório"])
+           .copy()
+    )
+    # garantir numérico/sem NaN em coordenadas
+    df_mapa["Latitude"] = pd.to_numeric(df_mapa["Latitude"], errors="coerce")
+    df_mapa["Longitude"] = pd.to_numeric(df_mapa["Longitude"], errors="coerce")
+    df_mapa = df_mapa.dropna(subset=["Latitude", "Longitude"])
 
-    # ===================== Mapa Interativo =====================
+    # ===================== Mapa Interativo (render rápido) =====================
     map_container = st.container()
     with map_container:
         st.subheader("🌍 Mapa dos Açudes")
@@ -96,10 +112,11 @@ def render_acudes():
             tile_option = st.selectbox(
                 "Estilo do Mapa:",
                 ["OpenStreetMap", "Stamen Terrain", "Stamen Toner", "CartoDB positron", "CartoDB dark_matter", "Esri Satellite"],
-                index=0
+                index=0,
+                key="acudes_tile"
             )
 
-        geojson_data = load_geojson_data()
+        geojson_data = _load_geojson_cached()
         geojson_bacia = geojson_data.get('geojson_bacia', {})
         geojson_c_gestoras = geojson_data.get('geojson_c_gestoras', {})
         geojson_poligno = geojson_data.get('geojson_poligno', {})
@@ -131,12 +148,43 @@ def render_acudes():
             svg_b64 = base64.b64encode(svg.encode("utf-8")).decode("utf-8")
             return f"data:image/svg+xml;base64,{svg_b64}"
 
-        if not df_filtrado.empty:
-            mapa_center = [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()]
+        # ---------- assinatura p/ cache do mapa ----------
+        def _map_signature(dfm: pd.DataFrame, tile: str) -> int:
+            if dfm.empty:
+                return hash((tile, "empty"))
+            cols = [c for c in ["Latitude", "Longitude", "Reservatório", "Data de Coleta", "Percentual", "Volume", "Cota Sangria"] if c in dfm.columns]
+            sig_df = dfm[cols].copy()
+            sig_df["Latitude"] = pd.to_numeric(sig_df["Latitude"], errors="coerce").round(6)
+            sig_df["Longitude"] = pd.to_numeric(sig_df["Longitude"], errors="coerce").round(6)
+            if "Data de Coleta" in sig_df:
+                sig_df["Data de Coleta"] = pd.to_datetime(sig_df["Data de Coleta"], errors="coerce").dt.date.astype(str)
+            for numcol in ["Percentual", "Volume", "Cota Sangria"]:
+                if numcol in sig_df:
+                    sig_df[numcol] = pd.to_numeric(sig_df[numcol], errors="coerce").fillna(0).round(4)
+            try:
+                sig_num = int(pd.util.hash_pandas_object(sig_df, index=False).sum())
+            except Exception:
+                sig_num = len(sig_df)
+            return hash((sig_num, tile))
+
+        map_sig = _map_signature(df_mapa, tile_option)
+
+        if st.session_state.get("acudes_map_sig") == map_sig and st.session_state.get("acudes_map_html"):
+            # Reutiliza HTML renderizado (super rápido)
+            st_html(st.session_state["acudes_map_html"], height=620, scrolling=False)
+        else:
+            # monta o folium map apenas quando necessário
+            if not df_mapa.empty:
+                mapa_center = [df_mapa["Latitude"].mean(), df_mapa["Longitude"].mean()]
+            else:
+                mapa_center = [-5.2, -39.5]
+
             m = folium.Map(location=mapa_center, zoom_start=9, tiles=None)
-            folium.TileLayer(tiles=tile_config[tile_option]["tiles"],
-                             attr=tile_config[tile_option]["attr"],
-                             name=tile_option).add_to(m)
+            folium.TileLayer(
+                tiles=tile_config[tile_option]["tiles"],
+                attr=tile_config[tile_option]["attr"],
+                name=tile_option
+            ).add_to(m)
 
             if geojson_bacia:
                 folium.GeoJson(
@@ -148,29 +196,31 @@ def render_acudes():
 
             gestoras_layer = folium.FeatureGroup(name="Comissões Gestoras", show=False)
             if geojson_c_gestoras:
-                for feature in geojson_c_gestoras["features"]:
-                    props = feature["properties"]
-                    lon, lat = feature["geometry"]["coordinates"]
-                    nome_g = props.get("SISTEMAH3", "Sem nome")
-                    popup_info = (
-                        "<div style='font-family: \"Segoe UI\", Arial, sans-serif; padding: 12px; "
-                        "background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); "
-                        "border-top: 4px solid #228B22; min-width: 200px;'>"
-                        f"<div style='font-size: 16px; font-weight: 600; color: #2c3e50; margin-bottom: 8px;'>{nome_g}</div>"
-                        f"<div style='margin: 6px 0;'><div style='font-weight: 500; color: #7f8c8d;'>Ano de Formação</div>"
-                        f"<div style='color: #2c3e50;'>{props.get('ANOFORMA1','N/A')}</div></div>"
-                        f"<div style='margin: 6px 0;'><div style='font-weight: 500; color: #7f8c8d;'>Sistema</div>"
-                        f"<div style='color: #2c3e50;'>{props.get('SISTEMAH3','N/A')}</div></div>"
-                        f"<div style='margin: 6px 0;'><div style='font-weight: 500; color: #7f8c8d;'>Município</div>"
-                        f"<div style='color: #228B22; font-weight: 500;'>{props.get('MUNICIPI6','N/A')}</div></div>"
-                        "</div>"
-                    )
-                    folium.Marker(
-                        [lat, lon],
-                        icon=folium.CustomIcon("https://cdn-icons-png.flaticon.com/512/4144/4144517.png", icon_size=(30, 30)),
-                        tooltip=nome_g,
-                        popup=folium.Popup(popup_info, max_width=300)
-                    ).add_to(gestoras_layer)
+                for feature in geojson_c_gestoras.get("features", []):
+                    props = feature.get("properties", {})
+                    coords = feature.get("geometry", {}).get("coordinates", [])
+                    if isinstance(coords, (list, tuple)) and len(coords) >= 2:
+                        lon, lat = coords[0], coords[1]
+                        nome_g = props.get("SISTEMAH3", "Sem nome")
+                        popup_info = (
+                            "<div style='font-family: \"Segoe UI\", Arial, sans-serif; padding: 12px; "
+                            "background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); "
+                            "border-top: 4px solid #228B22; min-width: 200px;'>"
+                            f"<div style='font-size: 16px; font-weight: 600; color: #2c3e50; margin-bottom: 8px;'>{nome_g}</div>"
+                            f"<div style='margin: 6px 0;'><div style='font-weight: 500; color: #7f8c8d;'>Ano de Formação</div>"
+                            f"<div style='color: #2c3e50;'>{props.get('ANOFORMA1','N/A')}</div></div>"
+                            f"<div style='margin: 6px 0;'><div style='font-weight: 500; color: #7f8c8d;'>Sistema</div>"
+                            f"<div style='color: #2c3e50;'>{props.get('SISTEMAH3','N/A')}</div></div>"
+                            f"<div style='margin: 6px 0;'><div style='font-weight: 500; color: #7f8c8d;'>Município</div>"
+                            f"<div style='color: #228B22; font-weight: 500;'>{props.get('MUNICIPI6','N/A')}</div></div>"
+                            "</div>"
+                        )
+                        folium.Marker(
+                            [lat, lon],
+                            icon=folium.CustomIcon("https://cdn-icons-png.flaticon.com/512/4144/4144517.png", icon_size=(30, 30)),
+                            tooltip=nome_g,
+                            popup=folium.Popup(popup_info, max_width=300)
+                        ).add_to(gestoras_layer)
                 gestoras_layer.add_to(m)
 
             municipios_layer = folium.FeatureGroup(name="Polígonos Municipais", show=False)
@@ -182,22 +232,23 @@ def render_acudes():
                 ).add_to(municipios_layer)
                 municipios_layer.add_to(m)
 
+            # pré-computa última data por reservatório para não reconsultar a cada iteração
+            ult_data_por_res = dff.groupby("Reservatório")["Data de Coleta"].max()
+
             for _, row in df_mapa.iterrows():
-                percentual_val = float(row.get("Percentual", "nan"))
-                percentual_str = f"{percentual_val:.2f}%" if not pd.isna(percentual_val) else "N/A"
-                volume_str = (
-                    f"{float(row.get('Volume', 'nan')):,.2f} hm³"
-                    .replace(",", "X").replace(".", ",").replace("X", ".")
-                    if not pd.isna(row.get('Volume', None)) else "N/A"
-                )
-                cota_sangria_str = (
-                    f"{float(row.get('Cota Sangria', 'nan')):,.2f}"
-                    .replace(",", "X").replace(".", ",").replace("X", ".")
-                    if not pd.isna(row.get('Cota Sangria', None)) else "N/A"
-                )
-                ultima_data = df_filtrado[df_filtrado["Reservatório"] == row["Reservatório"]]["Data de Coleta"].max()
-                data_formatada = ultima_data.strftime("%d/%m/%Y") if pd.notnull(ultima_data) else "N/A"
+                lat = float(row["Latitude"]); lon = float(row["Longitude"])
+                percentual_val = pd.to_numeric(row.get("Percentual", None), errors="coerce")
+                percentual_str = f"{percentual_val:.2f}%" if pd.notna(percentual_val) else "N/A"
+                vol_val = pd.to_numeric(row.get("Volume", None), errors="coerce")
+                volume_str = (f"{vol_val:,.2f} hm³".replace(",", "X").replace(".", ",").replace("X", ".")
+                              if pd.notna(vol_val) else "N/A")
+                cota_val = pd.to_numeric(row.get("Cota Sangria", None), errors="coerce")
+                cota_sangria_str = (f"{cota_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                    if pd.notna(cota_val) else "N/A")
+                ud = ult_data_por_res.get(row["Reservatório"], pd.NaT)
+                data_formatada = ud.strftime("%d/%m/%Y") if pd.notnull(ud) else "N/A"
                 icon_color = get_marker_color(percentual_val)
+
                 popup_content = (
                     '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">'
                     f"<div style='font-family: \"Segoe UI\", sans-serif; width: 280px; background: linear-gradient(to bottom, #f9f9f9, #ffffff); border-radius: 8px; border-left: 5px solid {icon_color}; padding: 12px; box-shadow: 0 3px 10px rgba(0,0,0,0.2);'>"
@@ -215,8 +266,9 @@ def render_acudes():
                     f"<span style='color: #7d3c98; font-weight: 500;'>{cota_sangria_str} m</span></div>"
                     "</div>"
                 )
+
                 folium.Marker(
-                    location=[row["Latitude"], row["Longitude"]],
+                    location=[lat, lon],
                     popup=folium.Popup(popup_content, max_width=300),
                     icon=folium.CustomIcon(create_svg_icon(icon_color), icon_size=(15, 15), icon_anchor=(7, 7)),
                     tooltip=f"{row['Reservatório']} - {data_formatada}",
@@ -226,19 +278,20 @@ def render_acudes():
             Fullscreen(position="topleft").add_to(m)
             MousePosition(position="bottomleft").add_to(m)
 
-            # ✅ usar st_folium com altura fixa (sem width em string)
-            st_folium(m, height=620, width="100%")
-        else:
-            st.warning("Não há reservatórios com os filtros aplicados.")
+            # 🔥 renderiza e guarda HTML no estado da sessão (em vez de st_folium)
+            html_map = m.get_root().render()
+            st_html(html_map, height=620, scrolling=False)
+            st.session_state["acudes_map_sig"] = map_sig
+            st.session_state["acudes_map_html"] = html_map
 
-    # 🔻 separador duro entre mapa e tabela (evita qualquer 'vazamento' do iframe)
+    # 🔻 separador duro entre mapa e tabela
     st.divider()
 
     # ===================== Tabela Interativa =====================
     table_container = st.container()
     with table_container:
         st.subheader("📊 Dados Detalhados Interativos")
-        if not df_filtrado.empty:
+        if not dff.empty:
             faixas_percentual = [
                 (0, 10, "#808080", "Muito Crítica"),
                 (10.1, 30, "#FF0000", "Crítica"),
@@ -256,10 +309,10 @@ def render_acudes():
                         return color, status, text_color
                 return "#FFFFFF", "Não classificado", "#000000"
 
-            df_filtrado[["Cor", "Status", "TextColor"]] = df_filtrado["Percentual"].apply(
+            dff[["Cor", "Status", "TextColor"]] = dff["Percentual"].apply(
                 lambda x: pd.Series(get_status_color(x))
             )
-            df_filtrado["Sangria"] = df_filtrado["Cota Sangria"] - df_filtrado["Nivel"]
+            dff["Sangria"] = dff["Cota Sangria"] - dff["Nivel"]
 
             colunas_exibir = [
                 "Data de Coleta", "Reservatório", "Município",
@@ -269,11 +322,11 @@ def render_acudes():
 
             def colorize_row(row):
                 idx = row.name
-                bg_color = df_filtrado.loc[idx, "Cor"]
-                text_color = df_filtrado.loc[idx, "TextColor"]
+                bg_color = dff.loc[idx, "Cor"]
+                text_color = dff.loc[idx, "TextColor"]
                 return [f"background-color: {bg_color}; color: {text_color}; font-weight: bold;" for _ in row]
 
-            styled_df = df_filtrado[colunas_exibir].copy().style.apply(colorize_row, axis=1)
+            styled_df = dff[colunas_exibir].copy().style.apply(colorize_row, axis=1)
 
             column_config = {
                 "Percentual": st.column_config.ProgressColumn("Percentual", format="%.1f%%", min_value=0, max_value=100),
@@ -313,7 +366,7 @@ def render_acudes():
 
             st.markdown("---")
             st.subheader("📈 Volume dos Reservatórios ao Longo do Tempo")
-            df_reservatorio = df_filtrado[df_filtrado["Reservatório"].isin(reservatorio_filtro)].sort_values("Data de Coleta")
+            df_reservatorio = dff[dff["Reservatório"].isin(reservatorio_filtro)].sort_values("Data de Coleta")
             if not df_reservatorio.empty:
                 df_reservatorio["Data de Coleta"] = df_reservatorio["Data de Coleta"].dt.date
                 df_plot = df_reservatorio.pivot_table(
@@ -329,13 +382,9 @@ def render_acudes():
             with st.expander("📥 Opções de Download", expanded=False):
                 st.download_button(
                     label="Baixar dados completos (CSV)",
-                    data=df_filtrado.drop(columns=["Cor", "Status", "TextColor"]).to_csv(index=False, encoding="utf-8-sig", sep=";"),
+                    data=dff.drop(columns=["Cor", "Status", "TextColor"]).to_csv(index=False, encoding="utf-8-sig", sep=";"),
                     file_name=f"reservatorios_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv"
                 )
         else:
             st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.", icon="⚠️")
-
-
-
-
