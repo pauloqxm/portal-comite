@@ -262,7 +262,7 @@ def render_vazoes_dashboard():
         else:
             center = [-5.2, -39.5]
 
-        m = folium.Map(location=center, zoom_start=8, tiles=None)
+        m = folium.Map(location=center, zoom_start=9, tiles=None)
         if mapa_tipo == "OpenStreetMap":
             folium.TileLayer(tiles="OpenStreetMap").add_to(m)
         else:
@@ -559,3 +559,4 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
