@@ -193,9 +193,9 @@ def render_vazoes_dashboard():
         st.info("Dados insuficientes para exibir o gráfico de evolução.")
 
     # =====================================================================
-    # 📊 Volume acumulado por reservatório
+    # 📊 Volume Liberado por reservatório
     # =====================================================================
-    st.subheader("📊 Volume liperado por reservatório")
+    st.subheader("📊 Volume liberado por reservatório")
 
     cols_necessarias = {"Reservatório Monitorado", "Data", "Vazão Operada"}
     tem_cols = cols_necessarias.issubset(set(df_filtrado.columns))
@@ -423,6 +423,7 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
 
