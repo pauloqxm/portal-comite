@@ -3,8 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import folium
-# ⬇️ troca: usar st_folium no lugar de folium_static
-from streamlit_folium import st_folium
+from streamlit_folium import st_folium  # ✅ usar st_folium
 from folium.plugins import Fullscreen, MiniMap, MousePosition, MeasureControl, MarkerCluster
 import altair as alt
 from utils.common import carregar_dados_vazoes, convert_vazao, load_geojson_data
@@ -90,7 +89,7 @@ def render_vazoes_dashboard():
         inicio, fim = intervalo_data
         df_filtrado = df_filtrado[(df_filtrado["Data"] >= pd.to_datetime(inicio)) & (df_filtrado["Data"] <= pd.to_datetime(fim))]
 
-    # === Exibe KPIs ===
+    # === KPIs ===
     st.markdown(
         """
         <style>
@@ -104,7 +103,6 @@ def render_vazoes_dashboard():
         """,
         unsafe_allow_html=True,
     )
-
     reservatorios_count = df_filtrado["Reservatório Monitorado"].nunique()
     registros_count = len(df_filtrado)
     ultima_data = df_filtrado["Data"].max().strftime("%d/%m/%Y") if not df_filtrado.empty and pd.notna(df_filtrado["Data"].max()) else "—"
@@ -141,7 +139,6 @@ def render_vazoes_dashboard():
                 )
 
                 if not dfr.empty:
-                    # Linha principal (Vazão Operada)
                     y_vals, unit_suffix = convert_vazao(dfr["Vazão Operada"], unidade_sel)
                     fig.add_trace(go.Scatter(
                         x=dfr["Data"], y=y_vals, mode="lines+markers", name=r,
@@ -151,24 +148,20 @@ def render_vazoes_dashboard():
                                       f"Vazão: %{{y:.3f}} {unit_suffix}<extra></extra>"
                     ))
 
-                    # Caso tenha apenas um reservatório selecionado → linhas extras
                     if len(reservatorios) == 1 and len(dfr) > 1:
                         dfr = dfr.copy()
                         dfr["dias_ativos"] = dfr["Data"].diff().dt.days.fillna(0)
                         if not dfr.empty:
                             dmax = df_filtrado["Data"].max()
                             dfr.loc[dfr.index[-1], "dias_ativos"] = (dmax - dfr["Data"].iloc[-1]).days + 1
-
                             media_pond = (dfr["Vazão Operada"] * dfr["dias_ativos"]).sum() / dfr["dias_ativos"].sum()
                             media_pond_conv, _ = convert_vazao(pd.Series([media_pond]), unidade_sel)
-
                             fig.add_hline(
                                 y=float(media_pond_conv.iloc[0]), line_dash="dash", line_width=2, line_color="red",
                                 annotation_text=f"Média da Operação {media_pond_conv.iloc[0]:.2f} {unit_suffix}",
                                 annotation_position="top right"
                             )
 
-                        # Linha Azul Vazao_Aloc se existir
                         if "Vazao_Aloc" in dfr.columns:
                             y_aloc, _ = convert_vazao(dfr["Vazao_Aloc"], unidade_sel)
                             fig.add_trace(go.Scatter(
@@ -183,7 +176,6 @@ def render_vazoes_dashboard():
                 height=500,
                 title="Curva da operação por reservatório"
             )
-
             st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="plotly_vazao_evolucao")
         else:
             st.info("Nenhum reservatório encontrado para exibir o gráfico.")
@@ -191,7 +183,7 @@ def render_vazoes_dashboard():
         st.info("Dados insuficientes para exibir o gráfico de evolução.")
 
     # =====================================================================
-    # 🗺️ Mapa com camadas  — agora em container + st.divider() + st_folium
+    # 🗺️ Mapa com camadas  — container + separador enxuto + st_folium(450px)
     # =====================================================================
     st.subheader("🗺️ Mapa dos Reservatórios com Camadas")
 
@@ -216,7 +208,7 @@ def render_vazoes_dashboard():
     tile_urls = {
         "OpenStreetMap": None,
         "Stamen Terrain": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png",
-        "Stamen Toner": "https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png",
+        "Stamen Toner": "https://stamen-tiles-a.ssl.fastly.net/toner/{z}/{x}/{y}.png",
         "CartoDB positron": "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
         "CartoDB dark_matter": "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
         "Esri Satellite": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -359,13 +351,13 @@ def render_vazoes_dashboard():
 
             folium.LayerControl(collapsed=True, position="topright").add_to(m)
 
-            # ✅ mapa ocupa toda a largura do container e altura fixa
-            st_folium(m, height=520, width="100%", use_container_width=True)
+            # ✅ mapa com menos altura e largura total, reduzindo o “gap” visual
+            st_folium(m, height=450, width="100%", use_container_width=True)
         else:
             st.info("Nenhum ponto com coordenadas disponíveis para plotar no mapa.")
 
-    # separador duro entre mapa e os próximos blocos
-    st.divider()
+    # 🔻 separador mais enxuto (menos padding que o st.divider)
+    st.markdown("---", unsafe_allow_html=True)
 
     # =====================================================================
     # 📊 Volume Liberado por reservatório
