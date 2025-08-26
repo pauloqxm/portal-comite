@@ -3,8 +3,9 @@ import pandas as pd
 import plotly.graph_objects as go
 import folium
 import json
+from streamlit_folium import st_folium
 from folium.plugins import Fullscreen, MousePosition
-from streamlit.components.v1 import html as st_html
+from streamlit.components.v1 import html as st_html  # ✅ para exibir HTML cacheado
 from utils.common import load_geojson_data
 
 st.set_page_config(layout="wide")
@@ -35,7 +36,7 @@ def render_dados():
 
     google_sheet_url = "https://docs.google.com/spreadsheets/d/1C40uaNmLUeu-k_FGEPZOgF8FwpSU00C9PtQu8Co4AUI/gviz/tq?tqx=out:csv&sheet=simulacoes_data"
     try:
-        df = load_sheet_cached(google_sheet_url)
+        df = load_sheet_cached(google_sheet_url)   # ✅ cache
         df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
         if 'Coordendas' in df.columns:
             df.rename(columns={'Coordendas': 'Coordenadas'}, inplace=True)
@@ -131,11 +132,12 @@ def render_dados():
             dff[['Latitude','Longitude']] = dff['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
         except Exception:
             pass
+
     for col in ['Latitude','Longitude']:
         if col in dff.columns:
             dff[col] = pd.to_numeric(dff[col].astype(str).str.replace(',', '.'), errors='coerce')
 
-    # df_map = somente coordenadas válidas
+    # df_map = somente coordenadas válidas (sem NaN e dentro da faixa)
     df_map = dff.copy()
     if {'Latitude','Longitude'} <= set(df_map.columns):
         df_map = df_map[
@@ -146,6 +148,7 @@ def render_dados():
         df_map = pd.DataFrame(columns=dff.columns)
 
     dff = dff.sort_values(["Açude", "Data"])
+
     skipped = len(dff) - len(df_map)
     if skipped > 0:
         st.caption(f"ℹ️ {skipped} registro(s) com coordenadas inválidas foram ignorados no mapa.")
@@ -160,7 +163,15 @@ def render_dados():
             index=0, key='map_style_select'
         )
 
-    # -------- assinatura de mapa (para cache HTML) --------
+    # ⚡ Controles de desempenho
+    c1, c2 = st.columns([1,1])
+    with c1:
+        fast_mode = st.toggle("⚡ Modo rápido (cache HTML)", value=True,
+                              help="Evita refazer o mapa a cada interação. Recalcula só quando necessário.")
+    with c2:
+        force_refresh = st.button("🔄 Atualizar mapa", use_container_width=True)
+
+    # Assinatura do mapa (para decidir quando recalcular)
     def build_map_signature(dfm: pd.DataFrame, tile: str, classes) -> int:
         cols = [c for c in ['Latitude','Longitude','Classificação','Açude','Município'] if c in dfm.columns]
         if not cols:
@@ -176,11 +187,13 @@ def render_dados():
 
     map_sig = build_map_signature(df_map, tile_option, classificacao_sel)
 
-    # -------- reutiliza HTML se nada mudou --------
-    if st.session_state.get('map_sig') == map_sig and st.session_state.get('map_html'):
-        st_html(st.session_state['map_html'], height=700, scrolling=False)
+    # Se possível, reutiliza HTML cacheado (super rápido)
+    if fast_mode and not force_refresh \
+       and st.session_state.get('map_sig') == map_sig \
+       and st.session_state.get('map_html'):
+        st_html(st.session_state['map_html'], height=700, scrolling=False)  # ✅ reutiliza
     else:
-        # ---- montar mapa (só quando mudou) ----
+        # ---- montar mapa apenas quando precisa ----
         tile_config = {
             "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
             "Stamen Terrain": {"tiles": "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
@@ -193,6 +206,7 @@ def render_dados():
         geojson_bacia = geojson_data.get('geojson_bacia', {})
         geojson_sedes = geojson_data.get('geojson_sedes', {})
 
+        # Centro inicial baseado em df_map (limpo)
         if not df_map.empty:
             start_center = [float(df_map['Latitude'].mean()), float(df_map['Longitude'].mean())]
         else:
@@ -202,15 +216,15 @@ def render_dados():
         folium.TileLayer(tiles=tile_config[tile_option]["tiles"],
                          attr=tile_config[tile_option]["attr"], name=tile_option).add_to(m)
 
-        # helpers classificação
+        # helpers
         def padronizar_classificacao_map(classificacao):
             c = str(classificacao or "").strip().lower()
             c = (c.replace("á","a").replace("ã","a").replace("â","a")
-                 .replace("é","e").replace("ê","e")
-                 .replace("í","i").replace("î","i")
-                 .replace("ó","o").replace("ô","o")
-                 .replace("ú","u").replace("û","u")
-                 .replace("ç","c"))
+                   .replace("é","e").replace("ê","e")
+                   .replace("í","i").replace("î","i")
+                   .replace("ó","o").replace("ô","o")
+                   .replace("ú","u").replace("û","u")
+                   .replace("ç","c"))
             if c == "normal" or ("fora" in c and "criticidade" in c): return "fora de criticidade"
             if "alta" in c:  return "criticidade alta"
             if "media" in c: return "criticidade média"
@@ -353,11 +367,14 @@ def render_dados():
         MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
         folium.LayerControl(collapsed=False).add_to(m)
 
-        # render e salva no cache de sessão
-        html_map = m.get_root().render()
-        st_html(html_map, height=700, scrolling=False)
-        st.session_state['map_sig'] = map_sig
-        st.session_state['map_html'] = html_map
+        # Renderização condicional (cache HTML vs st_folium)
+        if fast_mode:
+            html = m.get_root().render()
+            st_html(html, height=700, scrolling=False)
+            st.session_state['map_sig'] = map_sig
+            st.session_state['map_html'] = html
+        else:
+            st_folium(m, height=700, width="100%", use_container_width=True, key=f"folium_{map_sig}")
 
     # --------- Legenda ---------
     st.markdown("""
@@ -445,9 +462,7 @@ def render_dados():
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
         dff["Cota Simulada (m)"] = pd.to_numeric(dff["Cota Simulada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
-        dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"].astype str).str.replace(',', '.').astype(float, errors='ignore')  # ou use to_numeric novamente
-        # melhor manter consistência:
-        dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"], errors='coerce')
+        dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
         fig_cotas = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
@@ -514,4 +529,3 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
-
