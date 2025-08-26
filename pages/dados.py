@@ -122,18 +122,33 @@ def render_dados():
         st.info("Não há dados para os filtros selecionados.")
         return
 
-    # Latitude/Longitude
-    if 'Coordenadas' in dff.columns:
+    # Latitude/Longitude – extrai e normaliza
+    if 'Coordenadas' in dff.columns and not {'Latitude','Longitude'} <= set(dff.columns):
         try:
-            dff[['Latitude','Longitude']] = dff['Coordenadas'].astype(str).str.split(',', expand=True).astype(float)
+            dff[['Latitude','Longitude']] = dff['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
         except Exception:
-            latlon = dff['Coordenadas'].astype(str).str.split(',', n=1, expand=True)
-            dff['Latitude'] = pd.to_numeric(latlon[0], errors='coerce')
-            dff['Longitude'] = pd.to_numeric(latlon[1], errors='coerce')
+            pass
+
+    for col in ['Latitude','Longitude']:
+        if col in dff.columns:
+            # troca vírgula decimal por ponto e converte para float
+            dff[col] = pd.to_numeric(dff[col].astype(str).str.replace(',', '.'), errors='coerce')
+
+    # df_map = somente coordenadas válidas (sem NaN e dentro da faixa)
+    df_map = dff.copy()
+    if {'Latitude','Longitude'} <= set(df_map.columns):
+        df_map = df_map[
+            df_map['Latitude'].between(-90, 90) &
+            df_map['Longitude'].between(-180, 180)
+        ].dropna(subset=['Latitude', 'Longitude'])
     else:
-        st.warning("A coluna 'Coordenadas' não foi encontrada. O mapa não será exibido.")
+        df_map = pd.DataFrame(columns=dff.columns)
 
     dff = dff.sort_values(["Açude", "Data"])
+
+    skipped = len(dff) - len(df_map)
+    if skipped > 0:
+        st.caption(f"ℹ️ {skipped} registro(s) com coordenadas inválidas foram ignorados no mapa.")
 
     # ===================== 🌍 Mapa dos Açudes (container + separador enxuto) =====================
     st.subheader("🌍 Mapa dos Açudes")
@@ -157,9 +172,9 @@ def render_dados():
         "Stamen Toner": {"tiles": "https://stamen-tiles-a.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>'},
     }
 
-    # Centro inicial
-    if not dff.empty and {'Latitude','Longitude'}.issubset(dff.columns):
-        start_center = [float(dff['Latitude'].mean()), float(dff['Longitude'].mean())]
+    # Centro inicial baseado em df_map (limpo)
+    if not df_map.empty:
+        start_center = [float(df_map['Latitude'].mean()), float(df_map['Longitude'].mean())]
     else:
         start_center = [-5.2, -39.5]
 
@@ -225,6 +240,7 @@ def render_dados():
         return None
 
     # Bacia + fit_bounds
+    geojson_bacia = geojson_data.get('geojson_bacia', {})
     if geojson_bacia:
         gj_bacia = folium.GeoJson(
             geojson_bacia, name="Bacia do Banabuiú",
@@ -289,9 +305,9 @@ def render_dados():
         ).add_to(situa_group)
         situa_group.add_to(m)
 
-    # Pinos dos Açudes
-    if not dff.empty and {'Latitude','Longitude'}.issubset(dff.columns):
-        for _, row in dff.iterrows():
+    # Pinos dos Açudes — usar df_map (já sem NaN)
+    if not df_map.empty:
+        for _, row in df_map.iterrows():
             try:
                 lat, lon = float(row['Latitude']), float(row['Longitude'])
             except Exception:
@@ -312,12 +328,14 @@ def render_dados():
                 location=[lat, lon], radius=6, color=color_marker, fill=True, fill_color=color_marker,
                 fill_opacity=0.9, tooltip=row.get('Açude', 'N/A'), popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
+    else:
+        st.info("Nenhum ponto válido para plotar no mapa (coordenadas ausentes/fora da faixa).")
 
     Fullscreen().add_to(m)
     MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
 
-    # ✅ render mapa: largura total + altura 450 (sem CSS extra) 
+    # ✅ render mapa
     st_folium(m, height=700, width="100%", use_container_width=True)
 
     # Legenda
@@ -344,7 +362,7 @@ def render_dados():
     </div>
     """, unsafe_allow_html=True)
 
-    # 🔻 separador enxuto (substitui st.divider e evita espaço morto)
+    # 🔻 separador enxuto
     st.markdown("---")
 
     # ===================== KPIs =====================
