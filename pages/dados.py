@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import folium
 import json
-from streamlit_folium import st_folium
+# from streamlit_folium import st_folium   # ⛔ não usado mais
 from folium.plugins import Fullscreen, MousePosition
 from streamlit.components.v1 import html as st_html  # ✅ para exibir HTML cacheado
 from utils.common import load_geojson_data
@@ -149,10 +149,6 @@ def render_dados():
 
     dff = dff.sort_values(["Açude", "Data"])
 
-    skipped = len(dff) - len(df_map)
-    if skipped > 0:
-        st.caption(f"ℹ️ {skipped} registro(s) com coordenadas inválidas foram ignorados no mapa.")
-
     # ===================== 🌍 Mapa dos Açudes =====================
     st.subheader("🌍 Mapa dos Açudes")
 
@@ -163,7 +159,7 @@ def render_dados():
             index=0, key='map_style_select'
         )
 
-# Assinatura do mapa (para decidir quando recalcular)
+    # Assinatura do mapa (para decidir quando recalcular)
     def build_map_signature(dfm: pd.DataFrame, tile: str, classes) -> int:
         cols = [c for c in ['Latitude','Longitude','Classificação','Açude','Município'] if c in dfm.columns]
         if not cols:
@@ -180,9 +176,7 @@ def render_dados():
     map_sig = build_map_signature(df_map, tile_option, classificacao_sel)
 
     # Se possível, reutiliza HTML cacheado (super rápido)
-    if fast_mode and not force_refresh \
-       and st.session_state.get('map_sig') == map_sig \
-       and st.session_state.get('map_html'):
+    if st.session_state.get('map_sig') == map_sig and st.session_state.get('map_html'):
         st_html(st.session_state['map_html'], height=700, scrolling=False)  # ✅ reutiliza
     else:
         # ---- montar mapa apenas quando precisa ----
@@ -359,14 +353,11 @@ def render_dados():
         MousePosition(position="bottomleft", separator=" | ", num_digits=4).add_to(m)
         folium.LayerControl(collapsed=False).add_to(m)
 
-        # Renderização condicional (cache HTML vs st_folium)
-        if fast_mode:
-            html = m.get_root().render()
-            st_html(html, height=700, scrolling=False)
-            st.session_state['map_sig'] = map_sig
-            st.session_state['map_html'] = html
-        else:
-            st_folium(m, height=700, width="100%", use_container_width=True, key=f"folium_{map_sig}")
+        # ✅ renderiza e guarda HTML no estado da sessão (sem botões/alternadores)
+        html = m.get_root().render()
+        st_html(html, height=700, scrolling=False)
+        st.session_state['map_sig'] = map_sig
+        st.session_state['map_html'] = html
 
     # --------- Legenda ---------
     st.markdown("""
@@ -521,4 +512,3 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
-
