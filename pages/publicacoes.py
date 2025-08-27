@@ -79,20 +79,21 @@ _PLACEHOLDER_SVG = """<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 2
 </svg>"""
 _PLACEHOLDER_DATAURI = "data:image/svg+xml;base64," + base64.b64encode(_PLACEHOLDER_SVG.encode()).decode()
 
-def _img_clickable_with_fallback(thumb: str, full: str, fallback: str, alt: str):
+def _img_clickable_with_fallback(thumb: str, full: str, fallback: str, alt: str, link_url: str):
     """
     Gera <a><img/></a>. Se a miniatura der erro, troca para fallback via onerror.
     Agora respeitando a proporção original da imagem.
+    Ao clicar na imagem, redireciona para o link da publicação.
     """
     img_src = escape(thumb or fallback or _PLACEHOLDER_DATAURI, quote=True)
     img_fb  = escape(fallback or _PLACEHOLDER_DATAURI, quote=True)
-    href    = escape(full or fallback or "#", quote=True)
+    href    = escape(link_url or "#", quote=True)  # Usa o link da publicação em vez da imagem ampliada
     alt_txt = escape(alt or "capa")
 
     return (
-        f'<a href="{href}" target="_blank" rel="noopener" title="Clique para ver em alta qualidade">'
+        f'<a href="{href}" target="_blank" rel="noopener" title="Clique para acessar a publicação">'
         f'  <img src="{img_src}" alt="{alt_txt}" '
-        f'       style="width:100%;height:auto;max-height:200px;display:block;object-fit:contain;" '
+        f'       style="width:100%;height:auto;max-height:200px;display:block;object-fit:contain;cursor:pointer;" '
         f'       onerror="this.onerror=null;this.src=\'{img_fb}\';" '
         f'       loading="lazy" />'
         f'</a>'
@@ -124,7 +125,8 @@ def render_publicacoes():
 <style>
 .card{ border:1px solid #e6e6e6; border-radius:14px; overflow:hidden;
        background:linear-gradient(180deg,#ffffff 0%, #fafafa 100%);
-       box-shadow:0 6px 16px rgba(0,0,0,.06); }
+       box-shadow:0 6px 16px rgba(0,0,0,.06); transition: transform 0.2s ease; }
+.card:hover{ transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
 .card-body{ padding:10px 12px 14px; }
 .card-title{ font-weight:700; color:#1f2d3d; font-size:15px; margin:6px 0 4px; }
 .card-meta{ color:#3a5f3a; font-size:12px; margin-bottom:6px; }
@@ -181,8 +183,8 @@ def render_publicacoes():
             with col:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
 
-                # Capa clicável com fallback (thumbnail -> uc?export=view -> placeholder)
-                cover_html = _img_clickable_with_fallback(thumb_url, full_url, fb_url, alt=titulo or "capa")
+                # Capa clicável com fallback - agora redireciona para o link da publicação
+                cover_html = _img_clickable_with_fallback(thumb_url, full_url, fb_url, titulo or "capa", link)
                 st.markdown(cover_html, unsafe_allow_html=True)
 
                 body = []
