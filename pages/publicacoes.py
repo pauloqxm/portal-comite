@@ -22,7 +22,7 @@ def render_publicacoes():
         unsafe_allow_html=True,
     )
 
-    df = load_docs_data()
+    df = load_publicacoes_data()
     if df is None or df.empty:
         st.info("Não há documentos disponíveis no momento.")
         return
