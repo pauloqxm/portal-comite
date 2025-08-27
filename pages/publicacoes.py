@@ -6,8 +6,8 @@ import base64
 
 GOOGLESHEET_URL = "https://docs.google.com/spreadsheets/d/1A9Ibbij0aDUbFzVdqyl1FmGAbulFnylOHeU_qFdpjgs/edit?gid=0#gid=0"
 
-THUMB_SIZE = "w150"   # miniatura
-FULL_SIZE  = "w2000"  # ao clicar
+THUMB_SIZE = "w80"   # miniatura
+FULL_SIZE  = "w1500"  # ao clicar
 
 def _gsheet_to_csv_url(url: str) -> str:
     try:
