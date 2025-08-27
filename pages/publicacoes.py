@@ -1,9 +1,14 @@
 import streamlit as st
 import pandas as pd
 from html import escape
+import re
 
 # ====================== CONFIG ======================
 GOOGLESHEET_URL = "https://docs.google.com/spreadsheets/d/1A9Ibbij0aDUbFzVdqyl1FmGAbulFnylOHeU_qFdpjgs/edit?gid=0#gid=0"
+
+# Tamanhos das imagens do Drive
+THUMB_SIZE = "w150"   # miniatura na grade
+FULL_SIZE  = "w2000"  # ao clicar, abre maior
 
 def _gsheet_to_csv_url(url: str) -> str:
     try:
@@ -15,29 +20,32 @@ def _gsheet_to_csv_url(url: str) -> str:
     except Exception:
         return url
 
-def gdrive_to_direct(url: str) -> str:
-    """
-    Converte link do Google Drive para exibição direta:
-      https://drive.google.com/file/d/<ID>/view?... -> https://drive.google.com/uc?export=view&id=<ID>
-      https://drive.google.com/open?id=<ID>        -> https://drive.google.com/uc?export=view&id=<ID>
-    Caso não reconheça o formato, retorna o original.
-    """
+# -------- conversores Google Drive --------
+def _extract_gdrive_id(url: str) -> str:
     if not url or not isinstance(url, str):
         return ""
     url = url.strip()
-    fid = ""
-    if "file/d/" in url:
-        try:
-            fid = url.split("file/d/")[1].split("/")[0]
-        except Exception:
-            pass
-    elif "open?id=" in url:
-        try:
-            fid = url.split("open?id=")[1].split("&")[0]
-        except Exception:
-            pass
-    return f"https://drive.google.com/uc?export=view&id={fid}" if fid else url
+    m = re.search(r"/file/d/([^/]+)/", url)
+    if m: return m.group(1)
+    m = re.search(r"[?&]id=([^&]+)", url)
+    if m: return m.group(1)
+    m = re.search(r"/uc\?[^#]*[?&]id=([^&]+)", url)
+    if m: return m.group(1)
+    return ""
 
+def gdrive_image_url(url: str, size: str = "w800") -> str:
+    """Preferência: endpoint thumbnail do Drive com controle de tamanho."""
+    fid = _extract_gdrive_id(url)
+    if not fid:
+        return (url or "").strip()
+    return f"https://drive.google.com/thumbnail?id={fid}&sz={size}"
+
+def gdrive_image_fallback(url: str) -> str:
+    """Fallback simples (embed view)."""
+    fid = _extract_gdrive_id(url)
+    return f"https://drive.google.com/uc?export=view&id={fid}" if fid else (url or "").strip()
+
+# -------- carregamento da planilha --------
 @st.cache_data(ttl=600)
 def load_publicacoes_from_gsheet(url: str) -> pd.DataFrame:
     csv_url = _gsheet_to_csv_url(url)
@@ -55,6 +63,17 @@ def _card_button(href: str, label: str = "Visualizar"):
         return '<span class="btn disabled">Indisponível</span>'
     safe = escape(href, quote=True)
     return f'<a class="btn" href="{safe}" target="_blank" rel="noopener">🔗 {escape(label)}</a>'
+
+def _clickable_cover(thumb_url: str, full_url: str, alt: str = "capa"):
+    """Renderiza <a><img/></a> com largura responsiva."""
+    if not thumb_url:
+        return '<div class="img-wrap">sem capa</div>'
+    return (
+        f'<a href="{escape(full_url, quote=True)}" target="_blank" rel="noopener">'
+        f'  <img src="{escape(thumb_url, quote=True)}" alt="{escape(alt)}" '
+        f'       style="width:100%;height:auto;display:block;" />'
+        f'</a>'
+    )
 
 def render_publicacoes():
     st.title("📚 Publicações/Acervo")
@@ -119,7 +138,10 @@ def render_publicacoes():
             item = df.iloc[idx]; idx += 1
 
             capa_raw = item["Capa_link"].strip()
-            capa = gdrive_to_direct(capa_raw) if capa_raw else ""
+            # Miniatura e versão grande
+            thumb_url = gdrive_image_url(capa_raw, size=THUMB_SIZE) if capa_raw else ""
+            full_url  = gdrive_image_url(capa_raw, size=FULL_SIZE)  if capa_raw else ""
+
             titulo = item["Título"].strip()
             ano = item["Ano da Publicação"].strip()
             cat = item["Categoria"].strip()
@@ -132,11 +154,10 @@ def render_publicacoes():
             with col:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
 
-                if capa:
-                    st.image(capa, use_container_width=True)
-                else:
-                    st.markdown('<div class="img-wrap">sem capa</div>', unsafe_allow_html=True)
+                # Capa clicável (abre maior)
+                st.markdown(_clickable_cover(thumb_url, full_url, alt=titulo or "capa"), unsafe_allow_html=True)
 
+                # Corpo
                 body = []
                 body.append('<div class="card-body">')
                 body.append(f'<div class="card-title">{escape(titulo) if titulo else "Sem título"}</div>')
