@@ -119,6 +119,22 @@ def _card_button(href: str, label: str = "Visualizar"):
 
 def render_publicacoes():
     st.title("📚 Publicações/Acervo")
+    
+    # Adicionando a descrição da página
+    st.markdown(
+        """
+<div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
+  <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
+    <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
+    • Catálogo completo de publicações e acervo disponível<br>
+    • Visualização das capas com qualidade otimizada<br>
+    • Acesso direto às publicações ao clicar nas capas<br>
+    • Filtros por categoria, ano e palavra-chave
+  </p>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         """
