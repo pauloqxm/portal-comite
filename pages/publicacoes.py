@@ -24,12 +24,25 @@ def _extract_gdrive_id(url: str) -> str:
     if not url or not isinstance(url, str):
         return ""
     url = url.strip()
-    m = re.search(r"/file/d/([^/]+)/", url)  # /file/d/<ID>/view
-    if m: return m.group(1)
-    m = re.search(r"[?&]id=([^&]+)", url)    # ?id=<ID>
-    if m: return m.group(1)
-    m = re.search(r"/uc\?[^#]*[?&]id=([^&]+)", url)  # /uc?...&id=<ID>
-    if m: return m.group(1)
+    
+    # Padrões de URL do Google Drive
+    patterns = [
+        r"/file/d/([a-zA-Z0-9_-]+)",  # /file/d/<ID>/view
+        r"[?&]id=([a-zA-Z0-9_-]+)",   # ?id=<ID>
+        r"/uc\?[^#]*[?&]id=([a-zA-Z0-9_-]+)",  # /uc?...&id=<ID>
+        r"drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)",  # open?id=<ID>
+        r"drive\.google\.com/thumbnail\?id=([a-zA-Z0-9_-]+)",  # thumbnail?id=<ID>
+    ]
+    
+    for pattern in patterns:
+        m = re.search(pattern, url)
+        if m:
+            return m.group(1)
+    
+    # Se não encontrou com os padrões, tenta extrair diretamente se parece ser um ID
+    if re.match(r'^[a-zA-Z0-9_-]{20,}$', url):
+        return url
+    
     return ""
 
 def gdrive_urls(url: str, thumb_size=THUMB_SIZE, full_size=FULL_SIZE):
@@ -130,6 +143,13 @@ def render_publicacoes():
 
     st.markdown(f"**{len(df)} publicações encontradas**")
 
+    # DEBUG: Mostrar os links da capa para verificar o formato
+    st.write("DEBUG: Primeiros 5 links de capa:")
+    for i, link in enumerate(df["Capa_link"].head()):
+        st.write(f"{i}: {link}")
+        fid = _extract_gdrive_id(link)
+        st.write(f"ID extraído: {fid}")
+
     for c in df.columns:
         df[c] = df[c].astype(str).fillna("")
 
@@ -176,3 +196,7 @@ def render_publicacoes():
 
                 st.markdown("".join(body), unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
+
+# Adicione esta linha para executar a aplicação
+if __name__ == "__main__":
+    render_publicacoes()
