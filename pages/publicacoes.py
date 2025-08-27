@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go 
 import plotly.express as px
 from html import escape
-from utils.common import load_docs_data
+from utils.common import load_publicacoes_data
 
 def render_publicacoes():
     st.title("📚 Publicações/Acervo")
