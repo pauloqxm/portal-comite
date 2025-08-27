@@ -2,13 +2,12 @@ import streamlit as st
 import pandas as pd
 from html import escape
 import re
+import base64
 
-# ====================== CONFIG ======================
 GOOGLESHEET_URL = "https://docs.google.com/spreadsheets/d/1A9Ibbij0aDUbFzVdqyl1FmGAbulFnylOHeU_qFdpjgs/edit?gid=0#gid=0"
 
-# Tamanhos das imagens do Drive
-THUMB_SIZE = "w150"   # miniatura na grade
-FULL_SIZE  = "w2000"  # ao clicar, abre maior
+THUMB_SIZE = "w150"   # miniatura
+FULL_SIZE  = "w2000"  # ao clicar
 
 def _gsheet_to_csv_url(url: str) -> str:
     try:
@@ -20,32 +19,63 @@ def _gsheet_to_csv_url(url: str) -> str:
     except Exception:
         return url
 
-# -------- conversores Google Drive --------
+# ---------------- Google Drive helpers ----------------
 def _extract_gdrive_id(url: str) -> str:
     if not url or not isinstance(url, str):
         return ""
     url = url.strip()
-    m = re.search(r"/file/d/([^/]+)/", url)
+    m = re.search(r"/file/d/([^/]+)/", url)  # /file/d/<ID>/view
     if m: return m.group(1)
-    m = re.search(r"[?&]id=([^&]+)", url)
+    m = re.search(r"[?&]id=([^&]+)", url)    # ?id=<ID>
     if m: return m.group(1)
-    m = re.search(r"/uc\?[^#]*[?&]id=([^&]+)", url)
+    m = re.search(r"/uc\?[^#]*[?&]id=([^&]+)", url)  # /uc?...&id=<ID>
     if m: return m.group(1)
     return ""
 
-def gdrive_image_url(url: str, size: str = "w800") -> str:
-    """Preferência: endpoint thumbnail do Drive com controle de tamanho."""
+def gdrive_urls(url: str, thumb_size=THUMB_SIZE, full_size=FULL_SIZE):
+    """
+    Retorna (thumb, full, fallback) para imagens do Drive.
+    Se não for Drive, retorna (url, url, "").
+    """
+    if not url:
+        return "", "", ""
     fid = _extract_gdrive_id(url)
     if not fid:
-        return (url or "").strip()
-    return f"https://drive.google.com/thumbnail?id={fid}&sz={size}"
+        # não é Drive (ou formato não reconhecido)
+        clean = url.strip()
+        return clean, clean, ""
+    thumb = f"https://drive.google.com/thumbnail?id={fid}&sz={thumb_size}"
+    full  = f"https://drive.google.com/thumbnail?id={fid}&sz={full_size}"
+    fb    = f"https://drive.google.com/uc?export=view&id={fid}"
+    return thumb, full, fb
 
-def gdrive_image_fallback(url: str) -> str:
-    """Fallback simples (embed view)."""
-    fid = _extract_gdrive_id(url)
-    return f"https://drive.google.com/uc?export=view&id={fid}" if fid else (url or "").strip()
+# Placeholder cinza (SVG inline) se tudo falhar
+_PLACEHOLDER_SVG = """<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 200'>
+  <rect width='320' height='200' fill='#f2f4f7'/>
+  <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle'
+        fill='#9aa0a6' font-family='Segoe UI, Roboto, sans-serif' font-size='14'>
+    capa indisponível
+  </text>
+</svg>"""
+_PLACEHOLDER_DATAURI = "data:image/svg+xml;base64," + base64.b64encode(_PLACEHOLDER_SVG.encode()).decode()
 
-# -------- carregamento da planilha --------
+def _img_clickable_with_fallback(thumb: str, full: str, fallback: str, alt: str):
+    """
+    Gera <a><img/></a>. Se a miniatura der erro, troca para fallback via onerror.
+    """
+    img_src = escape(thumb or fallback or _PLACEHOLDER_DATAURI, quote=True)
+    img_fb  = escape(fallback or _PLACEHOLDER_DATAURI, quote=True)
+    href    = escape(full or fallback or "#", quote=True)
+    alt_txt = escape(alt or "capa")
+
+    return (
+        f'<a href="{href}" target="_blank" rel="noopener">'
+        f'  <img src="{img_src}" alt="{alt_txt}" '
+        f'       style="width:100%;height:auto;display:block;" '
+        f'       onerror="this.onerror=null;this.src=\'{img_fb}\';" />'
+        f'</a>'
+    )
+
 @st.cache_data(ttl=600)
 def load_publicacoes_from_gsheet(url: str) -> pd.DataFrame:
     csv_url = _gsheet_to_csv_url(url)
@@ -64,31 +94,8 @@ def _card_button(href: str, label: str = "Visualizar"):
     safe = escape(href, quote=True)
     return f'<a class="btn" href="{safe}" target="_blank" rel="noopener">🔗 {escape(label)}</a>'
 
-def _clickable_cover(thumb_url: str, full_url: str, alt: str = "capa"):
-    """Renderiza <a><img/></a> com largura responsiva."""
-    if not thumb_url:
-        return '<div class="img-wrap">sem capa</div>'
-    return (
-        f'<a href="{escape(full_url, quote=True)}" target="_blank" rel="noopener">'
-        f'  <img src="{escape(thumb_url, quote=True)}" alt="{escape(alt)}" '
-        f'       style="width:100%;height:auto;display:block;" />'
-        f'</a>'
-    )
-
 def render_publicacoes():
     st.title("📚 Publicações/Acervo")
-    st.markdown(
-        """
-<div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
-  <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
-    <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
-    • Publicações organizadas em grade com capa e detalhes<br>
-    • Acesso rápido ao arquivo de cada item
-  </p>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
 
     st.markdown(
         """
@@ -138,15 +145,13 @@ def render_publicacoes():
             item = df.iloc[idx]; idx += 1
 
             capa_raw = item["Capa_link"].strip()
-            # Miniatura e versão grande
-            thumb_url = gdrive_image_url(capa_raw, size=THUMB_SIZE) if capa_raw else ""
-            full_url  = gdrive_image_url(capa_raw, size=FULL_SIZE)  if capa_raw else ""
+            thumb_url, full_url, fb_url = gdrive_urls(capa_raw, THUMB_SIZE, FULL_SIZE)
 
             titulo = item["Título"].strip()
-            ano = item["Ano da Publicação"].strip()
-            cat = item["Categoria"].strip()
+            ano    = item["Ano da Publicação"].strip()
+            cat    = item["Categoria"].strip()
             resumo = item["Resumo"].strip()
-            link = item["Link"].strip()
+            link   = item["Link"].strip()
 
             max_chars = 220
             resumo_show = (resumo[:max_chars].rstrip() + "…") if len(resumo) > max_chars else resumo
@@ -154,23 +159,20 @@ def render_publicacoes():
             with col:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
 
-                # Capa clicável (abre maior)
-                st.markdown(_clickable_cover(thumb_url, full_url, alt=titulo or "capa"), unsafe_allow_html=True)
+                # Capa clicável com fallback (thumbnail -> uc?export=view -> placeholder)
+                cover_html = _img_clickable_with_fallback(thumb_url, full_url, fb_url, alt=titulo or "capa")
+                st.markdown(cover_html, unsafe_allow_html=True)
 
-                # Corpo
                 body = []
                 body.append('<div class="card-body">')
                 body.append(f'<div class="card-title">{escape(titulo) if titulo else "Sem título"}</div>')
-
                 meta = " • ".join([m for m in [ano, cat] if m])
                 if meta:
                     body.append(f'<div class="card-meta">{escape(meta)}</div>')
-
                 if resumo_show:
                     body.append(f'<div class="card-resumo">{escape(resumo_show)}</div>')
-
                 body.append(_card_button(link, "Visualizar"))
                 body.append('</div>')
-                st.markdown("".join(body), unsafe_allow_html=True)
 
+                st.markdown("".join(body), unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
