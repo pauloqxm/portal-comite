@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from html import escape
-from utils.common import load_publicacoes_data
 
 # ====================== CONFIG ======================
 GOOGLESHEET_URL = "https://docs.google.com/spreadsheets/d/1A9Ibbij0aDUbFzVdqyl1FmGAbulFnylOHeU_qFdpjgs/edit?gid=0#gid=0"
