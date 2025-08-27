@@ -6,8 +6,8 @@ import base64
 
 GOOGLESHEET_URL = "https://docs.google.com/spreadsheets/d/1A9Ibbij0aDUbFzVdqyl1FmGAbulFnylOHeU_qFdpjgs/edit?gid=0#gid=0"
 
-THUMB_SIZE = "w60"   # miniatura (aumentado para melhor qualidade)
-FULL_SIZE  = "w1500"  # ao clicar
+THUMB_SIZE = "w400"   # miniatura 
+FULL_SIZE  = "w2000"  # ao clicar
 
 def _gsheet_to_csv_url(url: str) -> str:
     try:
@@ -58,8 +58,8 @@ def gdrive_urls(url: str, thumb_size=THUMB_SIZE, full_size=FULL_SIZE):
         clean = url.strip()
         return clean, clean, ""
     
-    # URL de miniatura (para exibição rápida) com maior qualidade
-    thumb = f"https://drive.google.com/thumbnail?id={fid}&sz={thumb_size}&export=download&q=90"
+    # URL de miniatura (para exibição rápida) - usando o tamanho configurado em THUMB_SIZE
+    thumb = f"https://drive.google.com/thumbnail?id={fid}&sz={thumb_size}"
     
     # URL para qualidade ORIGINAL (usando o link de download direto)
     full = f"https://drive.google.com/uc?export=download&id={fid}"
@@ -82,7 +82,7 @@ _PLACEHOLDER_DATAURI = "data:image/svg+xml;base64," + base64.b64encode(_PLACEHOL
 def _img_clickable_with_fallback(thumb: str, full: str, fallback: str, alt: str):
     """
     Gera <a><img/></a>. Se a miniatura der erro, troca para fallback via onerror.
-    Agora com melhor tratamento de qualidade.
+    Agora respeitando a proporção original da imagem.
     """
     img_src = escape(thumb or fallback or _PLACEHOLDER_DATAURI, quote=True)
     img_fb  = escape(fallback or _PLACEHOLDER_DATAURI, quote=True)
@@ -92,7 +92,7 @@ def _img_clickable_with_fallback(thumb: str, full: str, fallback: str, alt: str)
     return (
         f'<a href="{href}" target="_blank" rel="noopener" title="Clique para ver em alta qualidade">'
         f'  <img src="{img_src}" alt="{alt_txt}" '
-        f'       style="width:100%;height:auto;display:block;object-fit:cover;" '
+        f'       style="width:100%;height:auto;max-height:200px;display:block;object-fit:contain;" '
         f'       onerror="this.onerror=null;this.src=\'{img_fb}\';" '
         f'       loading="lazy" />'
         f'</a>'
@@ -129,7 +129,7 @@ def render_publicacoes():
 .card-title{ font-weight:700; color:#1f2d3d; font-size:15px; margin:6px 0 4px; }
 .card-meta{ color:#3a5f3a; font-size:12px; margin-bottom:6px; }
 .card-resumo{ color:#2c3e50; font-size:13px; line-height:1.45; min-height:44px; }
-.img-wrap{ width:100%; aspect-ratio:3/2; background:#f2f4f7; display:flex; align-items:center; justify-content:center; }
+.img-wrap{ width:100%; background:#f2f4f7; display:flex; align-items:center; justify-content:center; }
 .btn{ display:inline-block; padding:6px 10px; margin-top:8px;
       background:#228B22; color:#fff !important; text-decoration:none; border-radius:8px; font-size:13px;
       transition: filter .2s ease; }
