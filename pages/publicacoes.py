@@ -6,7 +6,7 @@ import base64
 
 GOOGLESHEET_URL = "https://docs.google.com/spreadsheets/d/1A9Ibbij0aDUbFzVdqyl1FmGAbulFnylOHeU_qFdpjgs/edit?gid=0#gid=0"
 
-THUMB_SIZE = "w80"   # miniatura
+THUMB_SIZE = "w100"   # miniatura (aumentado para melhor qualidade)
 FULL_SIZE  = "w1500"  # ao clicar
 
 def _gsheet_to_csv_url(url: str) -> str:
@@ -48,7 +48,7 @@ def _extract_gdrive_id(url: str) -> str:
 def gdrive_urls(url: str, thumb_size=THUMB_SIZE, full_size=FULL_SIZE):
     """
     Retorna (thumb, full, fallback) para imagens do Drive.
-    Se não for Drive, retorna (url, url, "").
+    Para qualidade original, usamos o link de download direto.
     """
     if not url:
         return "", "", ""
@@ -57,9 +57,16 @@ def gdrive_urls(url: str, thumb_size=THUMB_SIZE, full_size=FULL_SIZE):
         # não é Drive (ou formato não reconhecido)
         clean = url.strip()
         return clean, clean, ""
-    thumb = f"https://drive.google.com/thumbnail?id={fid}&sz={thumb_size}"
-    full  = f"https://drive.google.com/thumbnail?id={fid}&sz={full_size}"
-    fb    = f"https://drive.google.com/uc?export=view&id={fid}"
+    
+    # URL de miniatura (para exibição rápida) com maior qualidade
+    thumb = f"https://drive.google.com/thumbnail?id={fid}&sz={thumb_size}&export=download&q=90"
+    
+    # URL para qualidade ORIGINAL (usando o link de download direto)
+    full = f"https://drive.google.com/uc?export=download&id={fid}"
+    
+    # Fallback: visualização padrão do Google Drive
+    fb = f"https://drive.google.com/uc?export=view&id={fid}"
+    
     return thumb, full, fb
 
 # Placeholder cinza (SVG inline) se tudo falhar
@@ -75,6 +82,7 @@ _PLACEHOLDER_DATAURI = "data:image/svg+xml;base64," + base64.b64encode(_PLACEHOL
 def _img_clickable_with_fallback(thumb: str, full: str, fallback: str, alt: str):
     """
     Gera <a><img/></a>. Se a miniatura der erro, troca para fallback via onerror.
+    Agora com melhor tratamento de qualidade.
     """
     img_src = escape(thumb or fallback or _PLACEHOLDER_DATAURI, quote=True)
     img_fb  = escape(fallback or _PLACEHOLDER_DATAURI, quote=True)
@@ -82,10 +90,11 @@ def _img_clickable_with_fallback(thumb: str, full: str, fallback: str, alt: str)
     alt_txt = escape(alt or "capa")
 
     return (
-        f'<a href="{href}" target="_blank" rel="noopener">'
+        f'<a href="{href}" target="_blank" rel="noopener" title="Clique para ver em alta qualidade">'
         f'  <img src="{img_src}" alt="{alt_txt}" '
-        f'       style="width:100%;height:auto;display:block;" '
-        f'       onerror="this.onerror=null;this.src=\'{img_fb}\';" />'
+        f'       style="width:100%;height:auto;display:block;object-fit:cover;" '
+        f'       onerror="this.onerror=null;this.src=\'{img_fb}\';" '
+        f'       loading="lazy" />'
         f'</a>'
     )
 
@@ -142,13 +151,6 @@ def render_publicacoes():
         return
 
     st.markdown(f"**{len(df)} publicações encontradas**")
-
-    # DEBUG: Mostrar os links da capa para verificar o formato
-    st.write("DEBUG: Primeiros 5 links de capa:")
-    for i, link in enumerate(df["Capa_link"].head()):
-        st.write(f"{i}: {link}")
-        fid = _extract_gdrive_id(link)
-        st.write(f"ID extraído: {fid}")
 
     for c in df.columns:
         df[c] = df[c].astype(str).fillna("")
