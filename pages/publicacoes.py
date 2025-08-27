@@ -127,9 +127,9 @@ def render_publicacoes():
   <p style="font-family: 'Segoe UI', Roboto, sans-serif; color: #2c3e50; font-size: 16px; line-height: 1.6; margin: 0;">
     <span style="font-weight: 600; color: #006400;">📌 Nesta página você encontra:</span><br>
     • Catálogo completo de publicações e acervo disponível<br>
-    • Visualização das capas com qualidade otimizada<br>
-    • Acesso direto às publicações ao clicar nas capas<br>
-    • Filtros por categoria, ano e palavra-chave
+    • Publicações organizadas por categoria<br>
+    • Possibilidade de baixar os arquivos<br>
+    • Atualização permanente das publicações
   </p>
 </div>
 """,
