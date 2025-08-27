@@ -6,8 +6,8 @@ import plotly.express as px
 from html import escape
 from utils.common import load_docs_data
 
-def render_docs():
-    st.title("📜 Documentos para Download")
+def render_publicacoes():
+    st.title("📚 Publicações/Acervo")
     st.markdown(
         """
 <div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
