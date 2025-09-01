@@ -462,10 +462,9 @@ def render_dados():
     else:
         st.info("Gráfico de Cotas não disponível. Colunas ausentes.")
 
-#=====================📈 Volume (m³)
+#=====================📈 Volume (hm³)
     st.subheader("📈 Volume (m³)")
     if {'Volume(m³)','Volume (%)','Volume Observado (m³)'} <= set(dff.columns):
-        # Conversão dos dados
         dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Volume (%)"] = pd.to_numeric(dff["Volume (%)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Volume Observado (m³)"] = pd.to_numeric(dff["Volume Observado (m³)"].astype(str).str.replace(',', '.'), errors='coerce')
@@ -481,20 +480,19 @@ def render_dados():
                 y=base["Volume(m³)"],
                 mode="lines+markers", 
                 name=f"{acude} - Vol. Simulado",
-                hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Simulado: %{y:,.0f} m³<br>Vol. Percentual: %{customdata:,.2f}%<extra></extra>",
+                hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Simulado: %{y:,.0f} m³<br><b>Vol. Percentual:</b> %{customdata:,.2f}%<extra></extra>",
                 customdata=base["Volume (%)"]
             ))
             
-            # Volume Observado - apenas se houver dados
-            if base["Volume Observado (m³)"].notna().any():
-                fig_vol.add_trace(go.Scatter(
-                    x=base["Data"], 
-                    y=base["Volume Observado (m³)"],
-                    mode="lines+markers", 
-                    name=f"{acude} - Vol. Observado",
-                    line=dict(dash='dash'),  # Linha tracejada para diferenciar
-                    hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Observado: %{y:,.0f} m³<extra></extra>"
-                ))
+            # Volume Observado
+            fig_vol.add_trace(go.Scatter(
+                x=base["Data"], 
+                y=base["Volume Observado (m³)"],
+                mode="lines+markers", 
+                name=f"{acude} - Vol. Observado",
+                line=dict(dash='dash'),  # Linha tracejada para diferenciar
+                hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Observado: %{y:,.0f} m³<extra></extra>"
+            ))
         
         fig_vol.update_layout(
             template="plotly_white", 
@@ -506,8 +504,10 @@ def render_dados():
         )
         st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
     else:
-        st.error(f"Colunas faltantes: { {'Volume(m³)','Volume (%)','Volume Observado (m³)'} - set(dff.columns) }")
-    # ===================== Tabela =====================
+        colunas_faltantes = {'Volume(m³)','Volume (%)','Volume Observado (m³)'} - set(dff.columns)
+        st.info(f"Gráfico de Volume não disponível. Colunas faltantes: {colunas_faltantes}")
+
+# ===================== Tabela =====================
     st.markdown("---")
     st.subheader("📋 Tabela de Dados")
     with st.expander("Ver dados filtrados"):
@@ -533,5 +533,6 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
