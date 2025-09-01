@@ -490,9 +490,6 @@ def render_dados():
         dff["Volume (%)"] = dff["Volume (%)"].apply(convert_volume)
         dff["Volume Observado (m³)"] = dff["Volume Observado (m³)"].apply(convert_volume)
         
-        # DEBUG: Verificar se a conversão funcionou
-        st.write("📊 Amostra dos dados convertidos:")
-        st.dataframe(dff[['Açude', 'Data', 'Volume(m³)', 'Volume Observado (m³)', 'Volume (%)']].head())
         
         # Verificar se há dados válidos após conversão
         if dff["Volume(m³)"].isna().all() and dff["Volume Observado (m³)"].isna().all():
@@ -568,6 +565,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
