@@ -440,7 +440,7 @@ def render_dados():
         <div class="kpi-value">{dias}</div></div>
         """, unsafe_allow_html=True)
 
-    # ===================== Gráficos =====================
+# ===================== Gráficos =====================
     st.markdown("---")
     st.subheader("📈 Cotas (Cota Simulada x Cota Realizada)")
     if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
@@ -462,26 +462,32 @@ def render_dados():
     else:
         st.info("Gráfico de Cotas não disponível. Colunas ausentes.")
 
-    st.subheader("📈 Volume (hm³)")
+#=====================📈 Volume (hm³)
+
+    st.subheader("📈 Volume (m³)")
     if {'Volume(m³)','Volume (%)','Volume Observado (m³)'} <= set(dff.columns):
         dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Volume (%)"] = pd.to_numeric(dff["Volume (%)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Volume Observado (m³)"] = pd.to_numeric(dff["Volume Observado (m³)"].astype(str).str.replace(',', '.'), errors='coerce')
-        dff['Volume (hm³)'] = dff['Volume(m³)'] / 1_000_000
-        dff['Volume Observado (hm³)'] = dff['Volume Observado (m³)'] / 1_000_000
+        
+        # Remove as conversões para hm³ e mantém os valores originais em m³
+        dff['Volume (m³)'] = dff['Volume(m³)']
+        dff['Volume Observado (m³)'] = dff['Volume Observado (m³)']
+        
         fig_vol = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
-            fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume (hm³)"],
-                                         mode="lines+markers", name=f"{acude} - Vol. Simulado (hm³)",
-                                         hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Simulado: %{y:,.2f} hm³<br><b>Vol. Percentual:</b> %{customdata:,.2f}%<extra></extra>",
-                                         customdata=base["Volume (%)"]))
-            fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume Observado (hm³)"],
-                                         mode="lines+markers", name=f"{acude} - Vol. Observado (hm³)",
-                                         hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Observado: %{y:,.2f} hm³<br><extra></extra>"))
+            fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume (m³)"],
+                                        mode="lines+markers", name=f"{acude} - Vol. Simulado (m³)",
+                                        hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Simulado: %{y:,.0f} m³<br><b>Vol. Percentual:</b> %{customdata:,.2f}%<extra></extra>",
+                                        customdata=base["Volume (%)"]))
+            fig_vol.add_trace(go.Scatter(x=base["Data"], y=base["Volume Observado (m³)"],
+                                        mode="lines+markers", name=f"{acude} - Vol. Observado (m³)",
+                                        hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Observado: %{y:,.0f} m³<br><extra></extra>"))
+        
         fig_vol.update_layout(template="plotly_white", margin=dict(l=10,r=10,t=10,b=10),
                               legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-                              xaxis_title="Data", yaxis_title="Volume (hm³)", height=420)
+                              xaxis_title="Data", yaxis_title="Volume (m³)", height=420)
         st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
     else:
         st.info("Gráfico de Volume não disponível. Verifique colunas na planilha.")
@@ -512,3 +518,4 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
