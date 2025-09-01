@@ -465,9 +465,27 @@ def render_dados():
 #=====================📈 Volume (hm³)
     st.subheader("📈 Volume (m³)")
     if {'Volume(m³)','Volume (%)','Volume Observado (m³)'} <= set(dff.columns):
-        dff["Volume(m³)"] = pd.to_numeric(dff["Volume(m³)"].astype(str).str.replace(',', '.'), errors='coerce')
-        dff["Volume (%)"] = pd.to_numeric(dff["Volume (%)"].astype(str).str.replace(',', '.'), errors='coerce')
-        dff["Volume Observado (m³)"] = pd.to_numeric(dff["Volume Observado (m³)"].astype(str).str.replace(',', '.'), errors='coerce')
+        # Função para converter números com separador de milhar
+        def convert_volume(val):
+            if pd.isna(val):
+                return np.nan
+            try:
+                if isinstance(val, str):
+                    # Remove pontos (separador de milhar) e substitui vírgula por ponto (decimal)
+                    val_clean = val.replace('.', '').replace(',', '.')
+                    return float(val_clean)
+                return float(val)
+            except:
+                return np.nan
+        
+        # Convertendo as colunas
+        dff["Volume(m³)"] = dff["Volume(m³)"].apply(convert_volume)
+        dff["Volume (%)"] = dff["Volume (%)"].apply(convert_volume)
+        dff["Volume Observado (m³)"] = dff["Volume Observado (m³)"].apply(convert_volume)
+        
+        # DEBUG: Verificar se a conversão funcionou
+        st.write("📊 Dados após conversão:")
+        st.write(dff[['Volume(m³)', 'Volume Observado (m³)', 'Volume (%)']].head())
         
         fig_vol = go.Figure()
         
@@ -478,7 +496,7 @@ def render_dados():
             fig_vol.add_trace(go.Scatter(
                 x=base["Data"], 
                 y=base["Volume(m³)"],
-                mode="lines+markers", 
+                mode="lines+markers",
                 name=f"{acude} - Vol. Simulado",
                 hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Simulado: %{y:,.0f} m³<br><b>Vol. Percentual:</b> %{customdata:,.2f}%<extra></extra>",
                 customdata=base["Volume (%)"]
@@ -488,9 +506,9 @@ def render_dados():
             fig_vol.add_trace(go.Scatter(
                 x=base["Data"], 
                 y=base["Volume Observado (m³)"],
-                mode="lines+markers", 
+                mode="lines+markers",
                 name=f"{acude} - Vol. Observado",
-                line=dict(dash='dash'),  # Linha tracejada para diferenciar
+                line=dict(dash='dash'),
                 hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Observado: %{y:,.0f} m³<extra></extra>"
             ))
         
@@ -503,9 +521,10 @@ def render_dados():
             height=450
         )
         st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
+        
     else:
         colunas_faltantes = {'Volume(m³)','Volume (%)','Volume Observado (m³)'} - set(dff.columns)
-        st.info(f"Gráfico de Volume não disponível. Colunas faltantes: {colunas_faltantes}")
+        st.error(f"Colunas faltantes: {colunas_faltantes}")
 
 # ===================== Tabela =====================
     st.markdown("---")
@@ -533,6 +552,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
