@@ -465,7 +465,8 @@ def render_dados():
 
 #=====================📈 Volume (m³)
     st.subheader("📈 Volume (m³)")
-    if {'Volume(m³)','Volume (%)','Volume Observado (m³)'} <= set(dff.columns):
+    colunas_req = {'Volume(m³)', 'Volume (%)', 'Volume Observado (m³)'}
+    if colunas_req.issubset(set(dff.columns)):
         # Função para converter números com separador de milhar
         def convert_volume(val):
             try:
@@ -474,11 +475,11 @@ def render_dados():
                 if isinstance(val, (int, float)):
                     return float(val)
                 if isinstance(val, str):
-                    # Remove pontos (separador de milhar) e substitui vírgula por ponto (decimal)
+                    # Remove pontos (milhar) e troca vírgula por ponto (decimal)
                     val_clean = val.strip().replace('.', '').replace(',', '.')
-                    # Remove qualquer caractere não numérico exceto ponto e sinal negativo
+                    # Mantém apenas dígitos, ponto e sinal
                     val_clean = ''.join(c for c in val_clean if c.isdigit() or c in ['.', '-'])
-                    if val_clean == '' or val_clean == '.':
+                    if val_clean in ['', '.']:
                         return np.nan
                     return float(val_clean)
                 return np.nan
@@ -490,7 +491,6 @@ def render_dados():
         dff["Volume (%)"] = dff["Volume (%)"].apply(convert_volume)
         dff["Volume Observado (m³)"] = dff["Volume Observado (m³)"].apply(convert_volume)
         
-        
         # Verificar se há dados válidos após conversão
         if dff["Volume(m³)"].isna().all() and dff["Volume Observado (m³)"].isna().all():
             st.warning("⚠️ Todos os valores de volume estão nulos após conversão")
@@ -500,21 +500,25 @@ def render_dados():
             for acude in sorted(dff["Açude"].dropna().unique()):
                 base = dff[dff["Açude"] == acude].sort_values("Data")
                 
-                # Volume Simulado - apenas se houver dados
+                # Volume Simulado
                 if base["Volume(m³)"].notna().any():
                     fig_vol.add_trace(go.Scatter(
-                        x=base["Data"], 
+                        x=base["Data"],
                         y=base["Volume(m³)"],
                         mode="lines+markers",
                         name=f"{acude} - Vol. Simulado",
-                        hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Vol. Simulado: %{y:,.0f} m³<br><b>Vol. Percentual:</b> %{customdata:,.2f}%<extra></extra>",
-                        customdata=base["Volume (%)"]
+                        hovertemplate=(
+                            "<b>%{x|%d/%m/%Y}</b><br>"
+                            "Vol. Simulado: %{y:,.0f} m³<br>"
+                            "<b>Vol. Percentual:</b> %{customdata:,.2f}%<extra></extra>"
+                        ),
+                        customdata=base["Volume (%)"].to_numpy()  # ✅ evita warnings
                     ))
                 
-                # Volume Observado - apenas se houver dados
+                # Volume Observado
                 if base["Volume Observado (m³)"].notna().any():
                     fig_vol.add_trace(go.Scatter(
-                        x=base["Data"], 
+                        x=base["Data"],
                         y=base["Volume Observado (m³)"],
                         mode="lines+markers",
                         name=f"{acude} - Vol. Observado",
@@ -524,19 +528,18 @@ def render_dados():
             
             if len(fig_vol.data) > 0:
                 fig_vol.update_layout(
-                    template="plotly_white", 
+                    template="plotly_white",
                     margin=dict(l=10, r=10, t=10, b=10),
                     legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
-                    xaxis_title="Data", 
-                    yaxis_title="Volume (m³)", 
+                    xaxis_title="Data",
+                    yaxis_title="Volume (m³)",
                     height=450
                 )
                 st.plotly_chart(fig_vol, use_container_width=True, config={"displaylogo": False})
             else:
                 st.warning("⚠️ Nenhum dado válido para exibir no gráfico")
-        
     else:
-        colunas_faltantes = {'Volume(m³)','Volume (%)','Volume Observado (m³)'} - set(dff.columns)
+        colunas_faltantes = colunas_req - set(dff.columns)
         st.error(f"❌ Colunas faltantes: {colunas_faltantes}")
 
 # ===================== Tabela =====================
@@ -565,6 +568,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
