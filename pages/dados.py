@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import folium
 import json
@@ -567,6 +568,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
