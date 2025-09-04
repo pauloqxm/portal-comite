@@ -387,7 +387,7 @@ def render_dados():
     st.markdown("---")
 
     # ===================== KPIs =====================
-    st.subheader("📊 Indicadores de Desempenho (KPIs)")
+    st.subheader("📊 Painel de Resumo")
     st.markdown("""
     <style>
     .kpi-card { background-color:#f0f4f8; border:1px solid #d9e2eb; border-radius:10px;
@@ -568,6 +568,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
