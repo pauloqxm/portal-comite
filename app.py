@@ -34,19 +34,20 @@ with tab5:
     docs.render_docs()
     
 with tab6:
-    acompanhamento_diario.render_acompanhamento_diario()
-
-with tab7:
     o_comite.render_o_comite()
 
-with tab8:
+with tab7:
     publicacoes.render_publicacoes()
+
+with tab8:
+    acompanhamento_diario.render_acompanhamento_diario()
 
 with tab9:
     fale_conosco.render_fale_conosco()
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
 
 
