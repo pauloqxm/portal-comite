@@ -28,8 +28,8 @@ def render_home():
                     <li style="margin: 5px 0;">📈 Situação das Sedes: Gráficos de cota e volume.</li>
                     <li style="margin: 5px 0;">💬 Alocação Negociada: Atas e apresentações para download.</li>
                     <li style="margin: 5px 0;">🙋🏽 O Comitê: Conheça o Comitê.</li>
-                    <li style="margin: 5px 0;">📚 Publicações/Acervo.</li>
-                    <li style="margin: 5px 0;">📝 Acompanhamento Diário.</li>
+                    <li style="margin: 5px 0;">📚 Publicações/Acervo: Publicações que tem relação com Comitê.</li>
+                    <li style="margin: 5px 0;">📝 Acompanhamento Diário: A situação diária dos reservatórios.</li>
                     <li style="margin: 5px 0;">✉️ Fale Conosco: Entre em contato.</li>
                 </ul>
             </div>
@@ -38,6 +38,7 @@ def render_home():
         unsafe_allow_html=True
     )
     st.info("👆 Acesse as outras páginas clicando nas abas no topo da tela.", icon="ℹ️")
+
 
 
 
