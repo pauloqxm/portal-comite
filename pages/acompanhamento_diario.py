@@ -6,7 +6,7 @@ import streamlit as st
 import altair as alt
 
 def render_acompanhamento_diario():
-    st.title("📊 Acompanhamento diário dos reservatórios")
+    st.title("📊 Acompanhamento diário de nível")
     st.markdown(
         """
 <div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
