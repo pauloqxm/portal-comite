@@ -6,7 +6,7 @@ import streamlit as st
 import altair as alt
 
 def render_acompanhamento_diario():
-    st.title("📝 Acompanhamento Diário")
+    st.title("📊 Acompanhamento diário dos reservatórios")
     st.markdown(
         """
 <div style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #228B22; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px;">
@@ -255,7 +255,7 @@ def render_acompanhamento_diario():
         # Linha 1
         html.append("<tr>")
         html.append('<th rowspan="2">Reservatório</th>')
-        html.append('<th rowspan="2">Capacidade Total (m³)</th>')  # corrigido (era hm³)
+        html.append('<th rowspan="2">Capacidade Total (m³)</th>')  # rótulo corrigido
         html.append('<th rowspan="2">Cota Sangria</th>')
         html.append(f'<th class="group-head" colspan="2">{cota_group_label}</th>')
         html.append('<th rowspan="2">Variação do Nível</th>')
@@ -298,64 +298,77 @@ def render_acompanhamento_diario():
     try:
         df_raw = load_data_from_url(SHEETS_URL)
 
-        # -------- Filtro por reservatório (robusto) --------
+        # -------- Filtro por reservatório — modo ORIGINAL --------
         col_res_guess = find_column(df_raw, {"reservatorio", "reservatório", "acude", "açude", "nome"})
         if col_res_guess:
             reservatorios = sorted(x for x in df_raw[col_res_guess].dropna().unique() if x)
 
-            # Estado inicial: todos selecionados
-            if "selected_reservoirs" not in st.session_state:
-                st.session_state.selected_reservoirs = reservatorios[:]
+            # Usar session_state para gerenciar a seleção
+            if 'selected_reservoirs' not in st.session_state:
+                st.session_state.selected_reservoirs = ["Todos"]
 
+            # Container para organizar os controles
             col1, col2 = st.columns([3, 1])
 
             with col1:
-                sel = st.multiselect(
-                    "Filtrar reservatórios (opcional)",
-                    ["Todos"] + reservatorios,
-                    default=(["Todos"] if len(st.session_state.selected_reservoirs) == len(reservatorios)
-                             else st.session_state.selected_reservoirs),
-                    placeholder="Selecione…",
-                    help="Selecione 'Todos' para mostrar todos os reservatórios, ou selecione/desselecione individualmente"
-                )
+                # Multiselect — MOSTRAR TODOS OS NOMES QUANDO "Todos" ESTIVER SELECIONADO
+                if "Todos" in st.session_state.selected_reservoirs:
+                    sel = st.multiselect(
+                        "Filtrar reservatórios (opcional)",
+                        reservatorios,
+                        default=reservatorios,  # TODOS SELECIONADOS
+                        placeholder="Selecione…",
+                        help="Todos os reservatórios selecionados. Desselecione individualmente para remover."
+                    )
+                else:
+                    sel = st.multiselect(
+                        "Filtrar reservatórios (opcional)",
+                        ["Todos"] + reservatorios,
+                        default=st.session_state.selected_reservoirs,
+                        placeholder="Selecione…",
+                        help="Selecione 'Todos' para mostrar todos os reservatórios, ou selecione/desselecione individualmente"
+                    )
 
             with col2:
+                # Botões de ação rápida
                 st.write("Ações rápidas:")
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
                     if st.button("Todos", use_container_width=True):
-                        st.session_state.selected_reservoirs = reservatorios[:]
+                        # Seleciona TODOS os nomes (como no original)
+                        st.session_state.selected_reservoirs = reservatorios
                         st.rerun()
                 with col_btn2:
                     if st.button("Limpar", use_container_width=True):
                         st.session_state.selected_reservoirs = []
                         st.rerun()
 
-            # Normaliza seleção
-            if "Todos" in sel:
-                sel = reservatorios[:]
-
+            # Atualizar session_state se a seleção mudou
             if sel != st.session_state.selected_reservoirs:
                 st.session_state.selected_reservoirs = sel
                 st.rerun()
 
-            # Filtra
+            # Lógica de filtragem
             if not st.session_state.selected_reservoirs:
                 df_filtered = df_raw.head(0)
                 st.info("Nenhum reservatório selecionado. Selecione 'Todos' ou reservatórios específicos para visualizar os dados.")
                 st.stop()
             elif len(st.session_state.selected_reservoirs) == len(reservatorios):
+                # Se TODOS os reservatórios estão selecionados, mostrar tudo
                 df_filtered = df_raw
                 st.info("Mostrando todos os reservatórios")
             else:
+                # Se há seleções específicas
                 df_filtered = df_raw[df_raw[col_res_guess].isin(st.session_state.selected_reservoirs)]
                 st.info(f"Mostrando {len(st.session_state.selected_reservoirs)} reservatório(s) selecionado(s)")
 
-            # Status
-            if len(st.session_state.selected_reservoirs) == len(reservatorios):
-                st.caption("Selecionados: Todos os reservatórios")
-            else:
-                st.caption(f"Selecionados: {', '.join(st.session_state.selected_reservoirs)}")
+            # Mostrar status da seleção
+            if st.session_state.selected_reservoirs:
+                if len(st.session_state.selected_reservoirs) == len(reservatorios):
+                    st.caption("Selecionados: Todos os reservatórios")
+                else:
+                    st.caption(f"Selecionados: {', '.join(st.session_state.selected_reservoirs)}")
+
         else:
             df_filtered = df_raw
             st.warning("Não foi possível identificar a coluna de Reservatório.")
@@ -402,7 +415,7 @@ def render_acompanhamento_diario():
 
         # -------- Tabela --------
         if result.empty:
-            st.info("Nenhum dado encontrado para das datas selecionadas.")
+            st.info("Nenhum dado encontrado para as datas selecionadas.")
             st.stop()
 
         prev_label = dprev.strftime("%d/%m/%Y") if pd.notna(dprev) else "Data Anterior"
@@ -422,16 +435,12 @@ def render_acompanhamento_diario():
         col1, col2 = st.columns([1, 1])
 
         with col1:
+            # CSV (formatado)
             csv_bytes = result.to_csv(index=False, sep=';', decimal=',').encode("utf-8")
-            st.download_button(
-                "⬇️ Baixar CSV (formatado)",
-                data=csv_bytes,
-                file_name="reservatorios_tabela_diaria.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-
+            st.download_button("⬇️ Baixar CSV (formatado)", data=csv_bytes,
+                               file_name="reservatorios_tabela_diaria.csv", mime="text/csv", use_container_width=True)
         with col2:
+            # HTML da Tabela
             st.download_button(
                 label="🌐 Baixar HTML — Tabela",
                 data=html_table_string.encode("utf-8"),
@@ -441,7 +450,7 @@ def render_acompanhamento_diario():
             )
 
         # ==========================
-        # GRÁFICOS (Altair)
+        # GRÁFICOS (Altair) — TODOS com altura dinâmica
         # ==========================
         st.markdown("---")
         st.markdown("### 📈 Visualizações")
@@ -458,8 +467,8 @@ def render_acompanhamento_diario():
                         y=alt.Y("Reservatório:N", sort=alt.EncodingSortField(field="Variação do Nível", op="min", order='ascending'), title=None),
                         x=alt.X("Variação do Nível:Q", title="Δ nível (m)"),
                         color=alt.condition("datum['Variação do Nível'] > 0",
-                                            alt.value("#2563eb"),
-                                            alt.value("#dc2626")),
+                                            alt.value("#2563eb"),  # azul
+                                            alt.value("#dc2626")), # vermelho
                         tooltip=[
                             alt.Tooltip("Reservatório:N"),
                             alt.Tooltip("Variação do Nível:Q", format=".2f"),
@@ -537,7 +546,7 @@ def render_acompanhamento_diario():
                         y=alt.Y("Reservatório:N", sort=alt.EncodingSortField(field="Verter", op="min", order='descending'), title=None),
                         x=alt.X("Verter:Q", title="Verter (m)"),
                         color=alt.condition("datum['Verter'] <= 0",
-                                            alt.value("#34d399"),  # Verde (verter)
+                                            alt.value("#34d399"), # Verde (verter)
                                             alt.value("#facc15")), # Amarelo (não verter)
                         tooltip=[
                             alt.Tooltip("Reservatório:N"),
