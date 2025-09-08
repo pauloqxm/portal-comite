@@ -12,3 +12,5 @@ altair
 gspread
 oauth2client
 PyGithub
+vl-convert-python
+matplotlib
