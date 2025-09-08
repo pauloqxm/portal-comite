@@ -7,7 +7,7 @@ import plotly.express as px
 from branca.element import CssLink
 # REMOVER: from folium.plugins import BeautifyIcon
 
-def render_o_comite():
+def render_acompanhamento_diario():
     st.title("🙋🏽 O Comitê")
     st.markdown(
         """
