@@ -255,7 +255,7 @@ def render_acompanhamento_diario():
         # Linha 1
         html.append("<tr>")
         html.append('<th rowspan="2">Reservatório</th>')
-        html.append('<th rowspan="2">Capacidade Total (m³)</th>')  # rótulo corrigido
+        html.append('<th rowspan="2">Capacidade (hm³)</th>')  # rótulo corrigido
         html.append('<th rowspan="2">Cota Sangria</th>')
         html.append(f'<th class="group-head" colspan="2">{cota_group_label}</th>')
         html.append('<th rowspan="2">Variação do Nível</th>')
