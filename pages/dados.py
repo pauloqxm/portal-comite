@@ -4,9 +4,8 @@ import numpy as np
 import plotly.graph_objects as go
 import folium
 import json
-# from streamlit_folium import st_folium   # ⛔ não usado mais
 from folium.plugins import Fullscreen, MousePosition
-from streamlit.components.v1 import html as st_html  # ✅ para exibir HTML cacheado
+from streamlit.components.v1 import html as st_html  
 from utils.common import load_geojson_data
 
 st.set_page_config(layout="wide")
@@ -618,6 +617,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
