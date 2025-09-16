@@ -447,18 +447,68 @@ def render_dados():
     if 'Cota Simulada (m)' in dff.columns and 'Cota Realizada (m)' in dff.columns:
         dff["Cota Simulada (m)"] = pd.to_numeric(dff["Cota Simulada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
+        
+        # Calcular a diferença entre as cotas
+        dff["Diferença (m)"] = dff["Cota Simulada (m)"] - dff["Cota Realizada (m)"]
+        
         fig_cotas = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
             base = dff[dff["Açude"] == acude].sort_values("Data")
-            fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Simulada (m)"],
-                                           mode="lines+markers", name=f"{acude} - Cota Simulada (m)",
-                                           hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m<extra></extra>"))
-            fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Realizada (m)"],
-                                           mode="lines+markers", name=f"{acude} - Cota Realizada (m)",
-                                           hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m<extra></extra>"))
-        fig_cotas.update_layout(template="plotly_white", margin=dict(l=10,r=10,t=10,b=10),
-                                legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-                                xaxis_title="Data", yaxis=dict(title="Cota (m)", tickformat=".2f"), height=480)
+            
+            # Trace para Cota Simulada
+            fig_cotas.add_trace(go.Scatter(
+                x=base["Data"], 
+                y=base["Cota Simulada (m)"],
+                mode="lines+markers", 
+                name=f"{acude} - Cota Simulada (m)",
+                hovertemplate=(
+                    "<b>Cota Simulada</b><br>"
+                    "Data: %{x|%d/%m/%Y}<br>"
+                    "Valor: %{y:.2f} m<br>"
+                    "Diferença: %{customdata:.2f} m<br>"
+                    "<extra></extra>"
+                ),
+                customdata=base["Diferença (m)"],  # Dados personalizados para o hover
+                line=dict(width=2)
+            ))
+            
+            # Trace para Cota Realizada
+            fig_cotas.add_trace(go.Scatter(
+                x=base["Data"], 
+                y=base["Cota Realizada (m)"],
+                mode="lines+markers", 
+                name=f"{acude} - Cota Realizada (m)",
+                hovertemplate=(
+                    "<b>Cota Realizada</b><br>"
+                    "Data: %{x|%d/%m/%Y}<br>"
+                    "Valor: %{y:.2f} m<br>"
+                    "Diferença: %{customdata:.2f} m<br>"
+                    "<extra></extra>"
+                ),
+                customdata=base["Diferença (m)"],  # Dados personalizados para o hover
+                line=dict(width=2)
+            ))
+            
+            # Linhas finas conectando os pontos das duas séries (para cada data)
+            for _, row in base.iterrows():
+                if not pd.isna(row["Cota Simulada (m)"]) and not pd.isna(row["Cota Realizada (m)"]):
+                    fig_cotas.add_trace(go.Scatter(
+                        x=[row["Data"], row["Data"]],
+                        y=[row["Cota Simulada (m)"], row["Cota Realizada (m)"]],
+                        mode="lines",
+                        line=dict(color="gray", width=1, dash="dash"),
+                        showlegend=False,
+                        hoverinfo="skip"  # Não mostrar hover para essas linhas
+                    ))
+        
+        fig_cotas.update_layout(
+            template="plotly_white", 
+            margin=dict(l=10, r=10, t=10, b=10),
+            legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
+            xaxis_title="Data", 
+            yaxis=dict(title="Cota (m)", tickformat=".2f"), 
+            height=480
+        )
         st.plotly_chart(fig_cotas, use_container_width=True, config={"displaylogo": False})
     else:
         st.info("Gráfico de Cotas não disponível. Colunas ausentes.")
@@ -568,6 +618,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
