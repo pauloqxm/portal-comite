@@ -448,8 +448,8 @@ def render_dados():
         dff["Cota Simulada (m)"] = pd.to_numeric(dff["Cota Simulada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
         dff["Cota Realizada (m)"] = pd.to_numeric(dff["Cota Realizada (m)"].astype(str).str.replace(',', '.'), errors='coerce')
         
-        # Calcular a diferença entre as cotas
-        dff["Diferença (m)"] = dff["Cota Simulada (m)"] - dff["Cota Realizada (m)"]
+        # Calcular a diferença entre as cotas (invertida: Realizada - Simulada)
+        dff["Diferença (m)"] = dff["Cota Realizada (m)"] - dff["Cota Simulada (m)"]
         
         fig_cotas = go.Figure()
         for acude in sorted(dff["Açude"].dropna().unique()):
@@ -496,7 +496,7 @@ def render_dados():
                         x=[row["Data"], row["Data"]],
                         y=[row["Cota Simulada (m)"], row["Cota Realizada (m)"]],
                         mode="lines",
-                        line=dict(color="gray", width=1, dash="dash"),
+                        line=dict(color="gray", width=0.5, dash="dash"),  # Linha mais fina (0.5)
                         showlegend=False,
                         hoverinfo="skip"  # Não mostrar hover para essas linhas
                     ))
@@ -618,6 +618,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
