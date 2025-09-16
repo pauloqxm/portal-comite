@@ -452,10 +452,10 @@ def render_dados():
             base = dff[dff["Açude"] == acude].sort_values("Data")
             fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Simulada (m)"],
                                            mode="lines+markers", name=f"{acude} - Cota Simulada (m)",
-                                           hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
+                                           hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m<extra></extra>"))
             fig_cotas.add_trace(go.Scatter(x=base["Data"], y=base["Cota Realizada (m)"],
                                            mode="lines+markers", name=f"{acude} - Cota Realizada (m)",
-                                           hovertemplate="%{x|%d/%m/%Y} • %{y:.3f} m<extra></extra>"))
+                                           hovertemplate="%{x|%d/%m/%Y} • %{y:.2f} m<extra></extra>"))
         fig_cotas.update_layout(template="plotly_white", margin=dict(l=10,r=10,t=10,b=10),
                                 legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
                                 xaxis_title="Data", yaxis=dict(title="Cota (m)", tickformat=".2f"), height=480)
@@ -568,6 +568,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
