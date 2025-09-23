@@ -101,7 +101,7 @@ def render_vazoes_dashboard():
         inicio, fim = intervalo_data
         df_filtrado = df_filtrado[(df_filtrado["Data"] >= pd.to_datetime(inicio)) & (df_filtrado["Data"] <= pd.to_datetime(fim))]
 
-    # === KPIs ===
+# === KPIs ===
     st.markdown(
         """
         <style>
@@ -115,21 +115,30 @@ def render_vazoes_dashboard():
         """,
         unsafe_allow_html=True,
     )
+
     reservatorios_count = df_filtrado["Reservatório Monitorado"].nunique()
-    registros_count = len(df_filtrado)
+
+    # Novo cálculo: quantidade de dias distintos no intervalo
+    if not df_filtrado.empty and pd.notna(df_filtrado["Data"].min()) and pd.notna(df_filtrado["Data"].max()):
+        dias_count = (df_filtrado["Data"].max() - df_filtrado["Data"].min()).days + 1
+    else:
+        dias_count = "—"
+
     ultima_data = df_filtrado["Data"].max().strftime("%d/%m/%Y") if not df_filtrado.empty and pd.notna(df_filtrado["Data"].max()) else "—"
     unidade_show = "m³/s" if unidade_sel == "m³/s" else "L/s"
+
     st.markdown(
         f"""
         <div class="kpi-container">
             <div class="kpi-card"><div class="kpi-label">Reservatórios</div><div class="kpi-value">{reservatorios_count}</div></div>
-            <div class="kpi-card"><div class="kpi-label">Registros</div><div class="kpi-value">{registros_count}</div></div>
+            <div class="kpi-card"><div class="kpi-label">Dias</div><div class="kpi-value">{dias_count}</div></div>
             <div class="kpi-card"><div class="kpi-label">Última Data</div><div class="kpi-value">{ultima_data}</div></div>
             <div class="kpi-card"><div class="kpi-label">Unidade</div><div class="kpi-value">{unidade_show}</div></div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
 
     # =====================================================================
     # 📈 Evolução da Vazão Operada por Reservatório
@@ -559,4 +568,5 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
