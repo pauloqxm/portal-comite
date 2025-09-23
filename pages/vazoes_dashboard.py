@@ -72,7 +72,6 @@ def render_vazoes_dashboard():
 
     # === Filtros da Página ===
     with st.expander("☰ Filtros", expanded=True):
-        st.markdown('<div class="filter-card"><div class="filter-title">Opções de Filtro</div>', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
             estacoes = st.multiselect("🏞️ Reservatório", df["Reservatório Monitorado"].dropna().unique(), key="estacoes_vazao")
@@ -568,5 +567,6 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
 
