@@ -86,8 +86,8 @@ def render_dados():
             st.markdown('<div class="filter-card"><div class="filter-title">Filtros de Visualização</div>', unsafe_allow_html=True)
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                opcoes_acudes = sorted(df["Açude"].dropna().unique().tolist())
-                acudes_sel = st.multiselect("Açude", options=opcoes_acudes, default=[])
+                opcoes_acudes = sorted(df["Reservatório"].dropna().unique().tolist())
+                acudes_sel = st.multiselect("Reservatório", options=opcoes_acudes, default=[])
             with col2:
                 opcoes_municipios = sorted(df["Município"].dropna().unique().tolist())
                 municipios_sel = st.multiselect("Município", options=opcoes_municipios, default=[])
@@ -113,7 +113,7 @@ def render_dados():
 
     dff = df.copy()
     if acudes_sel:
-        dff = dff[dff["Açude"].isin(acudes_sel)]
+        dff = dff[dff["Reservatório"].isin(acudes_sel)]
     if municipios_sel:
         dff = dff[dff["Município"].isin(municipios_sel)]
     if classificacao_sel:
@@ -147,7 +147,7 @@ def render_dados():
     else:
         df_map = pd.DataFrame(columns=dff.columns)
 
-    dff = dff.sort_values(["Açude", "Data"])
+    dff = dff.sort_values(["Reservatório", "Data"])
 
     # ===================== 🌍 Mapa dos Açudes =====================
     st.subheader("🌍 Mapa dos Açudes")
@@ -451,8 +451,8 @@ def render_dados():
         dff["Diferença (m)"] = dff["Cota Realizada (m)"] - dff["Cota Simulada (m)"]
         
         fig_cotas = go.Figure()
-        for acude in sorted(dff["Açude"].dropna().unique()):
-            base = dff[dff["Açude"] == acude].sort_values("Data")
+        for acude in sorted(dff["Reservatório"].dropna().unique()):
+            base = dff[dff["Reservatório"] == acude].sort_values("Data")
             
             # Trace para Cota Simulada
             fig_cotas.add_trace(go.Scatter(
@@ -546,8 +546,8 @@ def render_dados():
         else:
             fig_vol = go.Figure()
             
-            for acude in sorted(dff["Açude"].dropna().unique()):
-                base = dff[dff["Açude"] == acude].sort_values("Data")
+            for acude in sorted(dff["Reservatório"].dropna().unique()):
+                base = dff[dff["Reservatório"] == acude].sort_values("Data")
                 
                 # Volume Simulado
                 if base["Volume(m³)"].notna().any():
@@ -604,7 +604,7 @@ def render_dados():
         colunas_existentes = [c for c in colunas_tabela if c in dff.columns]
         dff_tabela = dff[colunas_existentes]
         st.dataframe(
-            dff_tabela.sort_values(["Açude","Data"], ascending=[True, False]),
+            dff_tabela.sort_values(["Reservatório","Data"], ascending=[True, False]),
             use_container_width=True,
             column_config={
                 "Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
@@ -617,6 +617,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
