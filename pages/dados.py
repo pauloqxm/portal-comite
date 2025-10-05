@@ -596,7 +596,7 @@ def render_dados():
     st.subheader("📋 Tabela de Dados")
     with st.expander("Ver dados filtrados"):
         colunas_tabela = [
-            'Data','Açude','Município','Região Hidrográfica',
+            'Data','Reservatório','Município','Região Hidrográfica',
             'Cota Simulada (m)','Cota Realizada (m)','Volume(m³)','Volume Observado (m³)',
             'Volume (%)','Evapor. Parcial(mm)','Cota Interm. (m)',
             'Liberação (m³/s)','Liberação (m³)','Classificação','Coordenadas'
@@ -617,6 +617,7 @@ def render_dados():
                 "Liberação (m³)": st.column_config.NumberColumn(format="%.2f"),
             }
         )
+
 
 
 
