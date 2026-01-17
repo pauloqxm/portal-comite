@@ -373,6 +373,11 @@ def render_footer():
         </script>
         """,
         unsafe_allow_html=True,
+
+<script 
+ async 
+ src="https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js">
+</script>
     )
 
 def salvar_em_planilha(dados_formulario):
@@ -412,6 +417,7 @@ def salvar_em_planilha(dados_formulario):
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
         return False
+
 
 
 
