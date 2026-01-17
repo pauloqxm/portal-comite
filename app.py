@@ -10,6 +10,13 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"  # Adicione esta linha
 )
+def inject_gptmaker_widget():
+    st.markdown(
+        """
+        <script async src="https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js"></script>
+        """,
+        unsafe_allow_html=True
+)
 # ----------------- BARRA FIXA (HEADER) ------------
 render_header()
 
@@ -47,6 +54,7 @@ with tab9:
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
 
 
