@@ -39,11 +39,6 @@ def render_home():
     )
     st.info("👆 Acesse as outras páginas clicando nas abas no topo da tela.", icon="ℹ️")
 
-<script 
- async 
- src="https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js">
-</script>
-
 
 
 
