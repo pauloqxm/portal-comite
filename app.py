@@ -12,13 +12,20 @@ st.set_page_config(
 )
 
 def inject_gptmaker_widget():
-    st.markdown(
+    components.html(
         """
-        <script async src="https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js"></script>
+        <script>
+          (function () {
+            var s = document.createElement('script');
+            s.src = "https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js";
+            s.async = true;
+            document.head.appendChild(s);
+          })();
+        </script>
         """,
-        unsafe_allow_html=True
+        height=0,
+        width=0
     )
-inject_gptmaker_widget()
 
 # ----------------- BARRA FIXA (HEADER) ------------
 render_header()
@@ -57,6 +64,7 @@ with tab9:
 
 # ======================RODAPÉ (GLOBAL)
 render_footer()
+
 
 
 
