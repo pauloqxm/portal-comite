@@ -27,98 +27,114 @@ st.set_page_config(
 
 # ---------------- BOTÃO GPTMAKER WIDGET (FLOAT) ----------------
 
-def inject_gptmaker_widget():
+def inject_gptmaker_widget_debug():
     components.html(
         r"""
         <script>
         (function () {
-          try {
-            var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+          var doc = (window.parent && window.parent.document) ? window.parent.document : document;
 
-            // Carrega o float.js só 1 vez
-            if (!doc.getElementById("gptmaker-float-loader")) {
-              var s = doc.createElement("script");
-              s.id = "gptmaker-float-loader";
-              s.async = true;
-              s.src = "https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js";
-              doc.head.appendChild(s);
-            }
+          // overlay de debug (canto inferior esquerdo)
+          function ensureDebugBox(){
+            var box = doc.getElementById("__gpt_debug_box");
+            if (box) return box;
 
-            function clearGPTMakerStorage() {
-              try {
-                Object.keys(localStorage || {}).forEach(function(k){
-                  var kk = (k || "").toLowerCase();
-                  if (kk.includes("gptmaker") || kk.includes("gpt") || kk.includes("chat")) {
-                    localStorage.removeItem(k);
-                  }
-                });
-                Object.keys(sessionStorage || {}).forEach(function(k){
-                  var kk = (k || "").toLowerCase();
-                  if (kk.includes("gptmaker") || kk.includes("gpt") || kk.includes("chat")) {
-                    sessionStorage.removeItem(k);
-                  }
-                });
-              } catch(e){}
-            }
-
-            function getIfr() {
-              return doc.querySelector('iframe[src*="app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/iframe"]');
-            }
-
-            function boostZ(ifr){
-              if (!ifr) return;
-              try { ifr.style.zIndex = "2147483647"; } catch(e){}
-            }
-
-            function isOpen(ifr){
-              if (!ifr) return false;
-              var r = ifr.getBoundingClientRect();
-              // ABERTO: tem tamanho
-              return (r.width > 10 && r.height > 10);
-            }
-
-            function isClosed(ifr){
-              if (!ifr) return false;
-              var r = ifr.getBoundingClientRect();
-              // FECHADO: 0x0 (no teu caso)
-              return (r.width === 0 && r.height === 0);
-            }
-
-            var wasOpen = false;
-
-            setInterval(function(){
-              var ifr = getIfr();
-              if (!ifr) return;
-
-              boostZ(ifr);
-
-              var openNow = isOpen(ifr);
-              var closedNow = isClosed(ifr);
-
-              // Se estava aberto e agora fechou, limpa tudo
-              if (wasOpen && closedNow) {
-                clearGPTMakerStorage();
-
-                // Reinicia o iframe pra garantir sessão nova
-                try {
-                  var src = ifr.getAttribute("src") || "";
-                  if (src) {
-                    // remove __ts antigo e coloca outro
-                    src = src.replace(/([?&])__ts=\d+/g, "");
-                    src = src.replace(/[?&]$/, "");
-                    var sep = src.indexOf("?") >= 0 ? "&" : "?";
-                    ifr.setAttribute("src", src + sep + "__ts=" + Date.now());
-                  }
-                } catch(e){}
-              }
-
-              wasOpen = openNow;
-
-            }, 400);
-
-          } catch (e) {
-            console.log("GPTMaker close-reset error:", e);
+            box = doc.createElement("div");
+            box.id = "__gpt_debug_box";
+            box.style.position = "fixed";
+            box.style.left = "12px";
+            box.style.bottom = "12px";
+            box.style.zIndex = "2147483647";
+            box.style.background = "rgba(0,0,0,0.75)";
+            box.style.color = "#fff";
+            box.style.padding = "8px 10px";
+            box.style.borderRadius = "8px";
+            box.style.fontFamily = "monospace";
+            box.style.fontSize = "12px";
+            box.style.maxWidth = "320px";
+            box.style.whiteSpace = "pre-line";
+            doc.body.appendChild(box);
+            return box;
           }
+
+          var box = ensureDebugBox();
+
+          function log(msg){
+            box.textContent = msg;
+          }
+
+          function clearGPTMakerStorage() {
+            var removed = [];
+            try {
+              Object.keys(localStorage || {}).forEach(function(k){
+                var kk = (k || "").toLowerCase();
+                if (kk.includes("gptmaker") || kk.includes("gpt") || kk.includes("chat")) {
+                  removed.push("LS:" + k);
+                  localStorage.removeItem(k);
+                }
+              });
+              Object.keys(sessionStorage || {}).forEach(function(k){
+                var kk = (k || "").toLowerCase();
+                if (kk.includes("gptmaker") || kk.includes("gpt") || kk.includes("chat")) {
+                  removed.push("SS:" + k);
+                  sessionStorage.removeItem(k);
+                }
+              });
+            } catch(e){}
+            return removed;
+          }
+
+          function getIfr() {
+            return doc.querySelector('iframe[src*="app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/iframe"]');
+          }
+
+          // carrega o widget se não existir
+          if (!doc.getElementById("gptmaker-float-loader")) {
+            var s = doc.createElement("script");
+            s.id = "gptmaker-float-loader";
+            s.async = true;
+            s.src = "https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js";
+            doc.head.appendChild(s);
+          }
+
+          var wasOpen = false;
+          var lastEvent = "init";
+
+          setInterval(function(){
+            var ifr = getIfr();
+
+            if (!ifr) {
+              log("GPT Debug\niframe: NAO ENCONTRADO\nultimo: " + lastEvent);
+              return;
+            }
+
+            // z-index alto
+            try { ifr.style.zIndex = "2147483647"; } catch(e){}
+
+            var r = ifr.getBoundingClientRect();
+            var openNow = (r.width > 10 && r.height > 10);
+            var closedNow = (r.width === 0 && r.height === 0);
+
+            if (wasOpen && closedNow) {
+              var removed = clearGPTMakerStorage();
+              lastEvent = "FECHOU -> limpou (" + removed.length + ")";
+            }
+
+            if (!wasOpen && openNow) {
+              lastEvent = "ABRIU";
+            }
+
+            wasOpen = openNow;
+
+            log(
+              "GPT Debug\n" +
+              "iframe src: " + (ifr.getAttribute("src") || "").slice(0, 60) + "...\n" +
+              "w,h: " + r.width.toFixed(0) + " x " + r.height.toFixed(0) + "\n" +
+              "openNow: " + openNow + " | closedNow: " + closedNow + "\n" +
+              "ultimo: " + lastEvent
+            );
+          }, 300);
+
         })();
         </script>
         """,
@@ -127,7 +143,7 @@ def inject_gptmaker_widget():
     )
 
 # injeta o widget ANTES do header
-inject_gptmaker_widget()
+inject_gptmaker_widget_debug()
 
 
 # ----------------- BARRA FIXA (HEADER) ----------------
@@ -181,6 +197,7 @@ with tab9:
 
 # ----------------- RODAPÉ (GLOBAL) ----------------
 render_footer()
+
 
 
 
