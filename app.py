@@ -33,28 +33,23 @@ def inject_gptmaker_widget():
         <script>
         (function () {
           try {
-            var doc = (window.parent && window.parent.document)
-              ? window.parent.document
-              : document;
+            var doc = (window.parent && window.parent.document) ? window.parent.document : document;
 
-            // -------- util: limpar histórico --------
             function clearGPTMakerStorage() {
               try {
                 Object.keys(localStorage || {}).forEach(function(k){
-                  if (k.toLowerCase().includes("gpt") || k.toLowerCase().includes("chat")) {
-                    localStorage.removeItem(k);
-                  }
+                  var kk = (k || "").toLowerCase();
+                  if (kk.includes("gptmaker") || kk.includes("gpt") || kk.includes("chat")) localStorage.removeItem(k);
                 });
                 Object.keys(sessionStorage || {}).forEach(function(k){
-                  if (k.toLowerCase().includes("gpt") || k.toLowerCase().includes("chat")) {
-                    sessionStorage.removeItem(k);
-                  }
+                  var kk = (k || "").toLowerCase();
+                  if (kk.includes("gptmaker") || kk.includes("gpt") || kk.includes("chat")) sessionStorage.removeItem(k);
                 });
               } catch(e){}
             }
 
-            // evita duplicar script
-            if (!doc.getElementById("gptmaker-float-loader")) {
+            function loadWidget() {
+              if (doc.getElementById("gptmaker-float-loader")) return;
               var s = doc.createElement("script");
               s.id = "gptmaker-float-loader";
               s.async = true;
@@ -62,47 +57,96 @@ def inject_gptmaker_widget():
               doc.head.appendChild(s);
             }
 
-            // -------- observa abertura/fechamento do chat --------
-            var chatWasOpen = false;
-
+            // Detecta se o chat está aberto (heurística bem mais assertiva)
             function isChatOpen() {
-              // tenta identificar painel aberto do chat
-              var panel =
-                doc.querySelector('[class*="gptmaker"][style*="display"]') ||
-                doc.querySelector('[class*="chat"][style*="display"]') ||
-                doc.querySelector('iframe[src*="gptmaker"]');
-
-              if (!panel) return false;
-
-              // se iframe ou div visível
-              if (panel.tagName === "IFRAME") return true;
-              var style = window.getComputedStyle(panel);
-              return style.display !== "none" && style.visibility !== "hidden";
-            }
-
-            setInterval(function () {
-              var open = isChatOpen();
-
-              // se estava aberto e agora fechou → zera histórico
-              if (chatWasOpen && !open) {
-                clearGPTMakerStorage();
+              // 1) iframe do gptmaker
+              var ifr = doc.querySelector('iframe[src*="gptmaker"], iframe[src*="app.gptmaker.ai"]');
+              if (ifr) {
+                var r = ifr.getBoundingClientRect();
+                if (r.width > 10 && r.height > 10) return true;
               }
 
-              chatWasOpen = open;
-            }, 600);
+              // 2) qualquer container do widget visível (classes/ids variam)
+              var nodes = doc.querySelectorAll('[id*="gptmaker"], [class*="gptmaker"], [class*="chat"], [id*="chat"]');
+              for (var i=0; i<nodes.length; i++){
+                var el = nodes[i];
+                if (!el || !el.getBoundingClientRect) continue;
+                var rr = el.getBoundingClientRect();
+                if (rr.width > 120 && rr.height > 120) {
+                  var st = window.getComputedStyle(el);
+                  if (st && st.display !== "none" && st.visibility !== "hidden" && st.opacity !== "0") return true;
+                }
+              }
 
-            // -------- garante z-index alto --------
-            var tries = 0;
-            var t = setInterval(function () {
-              tries++;
-              var els = doc.querySelectorAll(
-                '[id*="gptmaker"], [class*="gptmaker"], iframe[src*="gptmaker"], div[style*="position: fixed"]'
-              );
-              els.forEach(function (el) {
-                try { el.style.zIndex = "2147483647"; } catch(e){}
-              });
-              if (tries > 60) clearInterval(t);
-            }, 200);
+              return false;
+            }
+
+            // Mantém estado anterior para detectar transição aberto -> fechado
+            var wasOpen = false;
+
+            function checkCloseAndClear() {
+              var open = isChatOpen();
+              if (wasOpen && !open) {
+                clearGPTMakerStorage();
+              }
+              wasOpen = open;
+            }
+
+            // 1) Carrega widget
+            loadWidget();
+
+            // 2) Observa mudanças no DOM (abrir/fechar costuma mexer no DOM)
+            var obs = new MutationObserver(function(){
+              checkCloseAndClear();
+              boostZIndex();
+            });
+            obs.observe(doc.documentElement, { childList: true, subtree: true, attributes: true });
+
+            // 3) Fallback por intervalo (se fechar só via CSS, sem mutação relevante)
+            setInterval(function(){
+              checkCloseAndClear();
+              boostZIndex();
+            }, 500);
+
+            // 4) Clique em qualquer coisa do widget. Após o clique, re-checa e se fechou, limpa.
+            doc.addEventListener("click", function(e){
+              try {
+                var t = e.target;
+                if (!t) return;
+
+                // Se o clique foi dentro de algo que parece ser do widget
+                var hit = false;
+                var p = t;
+                for (var i=0; i<8 && p; i++){
+                  var idc = ((p.id||"") + " " + (p.className||"")).toLowerCase();
+                  if (idc.includes("gptmaker") || idc.includes("chat")) { hit = true; break; }
+                  p = p.parentElement;
+                }
+                if (!hit) return;
+
+                // dá tempo do widget abrir/fechar e depois verifica
+                setTimeout(function(){
+                  checkCloseAndClear();
+                  boostZIndex();
+                }, 300);
+              } catch(err){}
+            }, true);
+
+            // z-index alto pra não sumir atrás do header
+            function boostZIndex() {
+              try {
+                var els = doc.querySelectorAll(
+                  '[id*="gptmaker"], [class*="gptmaker"], iframe[src*="gptmaker"], iframe[src*="app.gptmaker.ai"]'
+                );
+                els.forEach(function(el){
+                  try { el.style.zIndex = "2147483647"; } catch(e){}
+                });
+              } catch(e){}
+            }
+            boostZIndex();
+
+            // Estado inicial
+            wasOpen = isChatOpen();
 
           } catch (e) {
             console.log("GPTMaker close-reset error:", e);
@@ -111,7 +155,7 @@ def inject_gptmaker_widget():
         </script>
         """,
         height=0,
-        width=0,
+        width=0
     )
 
 # injeta o widget ANTES do header
@@ -169,5 +213,6 @@ with tab9:
 
 # ----------------- RODAPÉ (GLOBAL) ----------------
 render_footer()
+
 
 
