@@ -24,64 +24,131 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+WIDGET_ID = "3ED61474B48BE397410802603320372A"
 
-# ---------------- GPTMAKER WIDGET (FLOAT) ----------------
+
 def inject_gptmaker_widget():
-    components.html(
-        r"""
-        <script>
-        (function () {
-          try {
-            // tenta acessar o DOM principal (fora do iframe do Streamlit)
-            var doc = (window.parent && window.parent.document)
-              ? window.parent.document
-              : document;
+    """
+    Injeta o float.js do GPTMaker no DOM do Streamlit (Railway ok).
+    Ao fechar o chat, troca o contextId e recarrega o iframe,
+    para a próxima abertura começar uma conversa nova.
+    """
+    html = f"""
+    <script>
+    (function() {{
+      const WIDGET_ID = "{WIDGET_ID}";
+      const FLOAT_JS = "https://app.gptmaker.ai/widget/" + WIDGET_ID + "/float.js";
+      const IFRAME_BASE = "https://app.gptmaker.ai/widget/" + WIDGET_ID + "/iframe?floating=true";
+      const LS_KEY = "gptmaker_context_id_" + WIDGET_ID;
 
-            // evita duplicar em reruns do Streamlit
-            if (doc.getElementById("gptmaker-float-loader")) return;
+      function newContextId() {{
+        return "ctx_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+      }}
 
-            var s = doc.createElement("script");
-            s.id = "gptmaker-float-loader";
-            s.async = true;
-            s.src = "https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js";
-            doc.head.appendChild(s);
+      function getOrCreateContextId() {{
+        try {{
+          let v = parent.localStorage.getItem(LS_KEY);
+          if (!v) {{
+            v = newContextId();
+            parent.localStorage.setItem(LS_KEY, v);
+          }}
+          return v;
+        }} catch (e) {{
+          return newContextId();
+        }}
+      }}
 
-            // força z-index alto para não ficar atrás do header fixo
-            var tries = 0;
-            var t = setInterval(function () {
-              tries++;
+      function setContextId(v) {{
+        try {{ parent.localStorage.setItem(LS_KEY, v); }} catch (e) {{}}
+      }}
 
-              var els = doc.querySelectorAll(
-                '[id*="gptmaker"], [class*="gptmaker"], iframe[src*="gptmaker"], div[style*="position: fixed"]'
-              );
+      function loadFloatOnce() {{
+        const doc = parent.document;
+        if (!doc) return;
 
-              els.forEach(function (el) {
-                try {
-                  el.style.zIndex = "2147483647";
-                } catch (e) {}
-              });
+        if (doc.querySelector('script[data-gptmaker-float="1"][data-widget-id="' + WIDGET_ID + '"]')) {{
+          return;
+        }}
 
-              if (tries > 60) clearInterval(t);
-            }, 200);
+        const s = doc.createElement("script");
+        s.async = true;
+        s.src = FLOAT_JS;
+        s.setAttribute("data-gptmaker-float", "1");
+        s.setAttribute("data-widget-id", WIDGET_ID);
+        doc.head.appendChild(s);
+      }}
 
-          } catch (e) {
-            console.log("GPTMaker inject error:", e);
-          }
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
+      function findWidgetIframe() {{
+        const doc = parent.document;
+        if (!doc) return null;
+        const iframes = Array.from(doc.querySelectorAll("iframe"));
+        return iframes.find(i => (i.src || "").includes("app.gptmaker.ai/widget/" + WIDGET_ID + "/iframe"));
+      }}
+
+      function forceIframeUrl(iframe, contextId) {{
+        try {{
+          const url = new URL(iframe.src || IFRAME_BASE);
+          url.searchParams.set("floating", "true");
+          url.searchParams.set("contextId", contextId);
+          url.searchParams.set("__ts", String(Date.now()));
+          iframe.src = url.toString();
+        }} catch (e) {{
+          iframe.src = IFRAME_BASE + "&contextId=" + encodeURIComponent(contextId) + "&__ts=" + Date.now();
+        }}
+      }}
+
+      loadFloatOnce();
+
+      let lastOpen = null;
+
+      const timer = setInterval(() => {{
+        const iframe = findWidgetIframe();
+        if (!iframe) return;
+
+        // Garante que existe contextId no iframe, senão ele reaproveita conversa
+        const ctx = getOrCreateContextId();
+        if (!(iframe.src || "").includes("contextId=")) {{
+          forceIframeUrl(iframe, ctx);
+        }}
+
+        // Detecta aberto/fechado por tamanho real
+        const rect = iframe.getBoundingClientRect();
+        const openNow = rect.width > 10 && rect.height > 10;
+
+        if (lastOpen === null) {{
+          lastOpen = openNow;
+          return;
+        }}
+
+        const closedNow = !openNow;
+
+        // Transição ABERTO -> FECHADO
+        if (lastOpen && closedNow) {{
+          const fresh = newContextId();
+          setContextId(fresh);
+
+          // Recarrega o iframe "por baixo" já com contexto novo,
+          // pra quando abrir de novo, vir zerado e sem tela branca.
+          forceIframeUrl(iframe, fresh);
+        }}
+
+        lastOpen = openNow;
+      }}, 700);
+
+      // Segurança: se o Streamlit recriar o DOM, não deixa acumular interval duplicado
+      window.addEventListener("beforeunload", () => {{
+        try {{ clearInterval(timer); }} catch (e) {{}}
+      }});
+    }})();
+    </script>
+    """
+    components.html(html, height=0, width=0)
 
 
-# injeta o widget ANTES do header
 inject_gptmaker_widget()
 
-
-# ----------------- BARRA FIXA (HEADER) ----------------
+# ----------------- BARRA FIXA (HEADER) ------------
 render_header()
-
 
 # =========================
 # CRIAÇÃO DAS ABAS
@@ -127,6 +194,5 @@ with tab8:
 with tab9:
     fale_conosco.render_fale_conosco()
 
-
-# ----------------- RODAPÉ (GLOBAL) ----------------
+# ====================== RODAPÉ (GLOBAL)
 render_footer()
