@@ -25,109 +25,55 @@ st.set_page_config(
 )
 
 
-# ---------------- BOTÃO GPTMAKER WIDGET (FLOAT) ----------------
-
+# ---------------- GPTMAKER WIDGET (FLOAT) ----------------
 def inject_gptmaker_widget():
     components.html(
         r"""
         <script>
         (function () {
           try {
-            var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+            // tenta acessar o DOM principal (fora do iframe do Streamlit)
+            var doc = (window.parent && window.parent.document)
+              ? window.parent.document
+              : document;
 
-            // carrega o float.js uma vez
-            if (!doc.getElementById("gptmaker-float-loader")) {
-              var s = doc.createElement("script");
-              s.id = "gptmaker-float-loader";
-              s.async = true;
-              s.src = "https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js";
-              doc.head.appendChild(s);
-            }
+            // evita duplicar em reruns do Streamlit
+            if (doc.getElementById("gptmaker-float-loader")) return;
 
-            function getIfr() {
-              return doc.querySelector('iframe[src*="app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/iframe"]');
-            }
+            var s = doc.createElement("script");
+            s.id = "gptmaker-float-loader";
+            s.async = true;
+            s.src = "https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js";
+            doc.head.appendChild(s);
 
-            function rect(ifr){
-              try { return ifr.getBoundingClientRect(); } catch(e){ return {width:0,height:0}; }
-            }
+            // força z-index alto para não ficar atrás do header fixo
+            var tries = 0;
+            var t = setInterval(function () {
+              tries++;
 
-            function isOpen(ifr){
-              if (!ifr) return false;
-              var r = rect(ifr);
-              return (r.width > 10 && r.height > 10);
-            }
+              var els = doc.querySelectorAll(
+                '[id*="gptmaker"], [class*="gptmaker"], iframe[src*="gptmaker"], div[style*="position: fixed"]'
+              );
 
-            function isClosed(ifr){
-              if (!ifr) return false;
-              var r = rect(ifr);
-              return (r.width === 0 && r.height === 0);
-            }
+              els.forEach(function (el) {
+                try {
+                  el.style.zIndex = "2147483647";
+                } catch (e) {}
+              });
 
-            function boostZ(ifr){
-              if (!ifr) return;
-              try { ifr.style.zIndex = "2147483647"; } catch(e){}
-            }
-
-            // Troca apenas o SRC (sem remover iframe) para evitar tela branca
-            function refreshIframeSrc(ifr){
-              try {
-                var src = (ifr.getAttribute("src") || "").split("#")[0];
-                if (!src) return;
-
-                // remove __ts antigo
-                src = src.replace(/([?&])__ts=\d+/g, "");
-                src = src.replace(/[?&]$/, "");
-
-                var sep = src.indexOf("?") >= 0 ? "&" : "?";
-                var newSrc = src + sep + "__ts=" + Date.now();
-
-                ifr.setAttribute("src", newSrc);
-              } catch(e){}
-            }
-
-            var wasOpen = false;
-            var needsResetOnNextOpen = false;
-
-            setInterval(function(){
-              var ifr = getIfr();
-              if (!ifr) return;
-
-              boostZ(ifr);
-
-              var openNow = isOpen(ifr);
-              var closedNow = isClosed(ifr);
-
-              // ABERTO -> FECHOU: marca que precisa resetar na próxima abertura
-              if (wasOpen && closedNow) {
-                needsResetOnNextOpen = true;
-              }
-
-              // FECHADO -> ABRIU: se marcado, reseta no momento do abrir
-              if (!wasOpen && openNow) {
-                if (needsResetOnNextOpen) {
-                  // dá um tiquinho de tempo pro widget “subir”, depois renova src
-                  setTimeout(function(){
-                    var ifr2 = getIfr();
-                    if (ifr2) refreshIframeSrc(ifr2);
-                  }, 150);
-                  needsResetOnNextOpen = false;
-                }
-              }
-
-              wasOpen = openNow;
-
-            }, 300);
+              if (tries > 60) clearInterval(t);
+            }, 200);
 
           } catch (e) {
-            console.log("GPTMaker reset-on-open error:", e);
+            console.log("GPTMaker inject error:", e);
           }
         })();
         </script>
         """,
         height=0,
-        width=0
+        width=0,
     )
+
 
 # injeta o widget ANTES do header
 inject_gptmaker_widget()
@@ -184,11 +130,3 @@ with tab9:
 
 # ----------------- RODAPÉ (GLOBAL) ----------------
 render_footer()
-
-
-
-
-
-
-
-
