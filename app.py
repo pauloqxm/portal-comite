@@ -25,19 +25,63 @@ st.set_page_config(
 )
 
 
-# ---------------- GPTMAKER WIDGET (FLOAT) ----------------
+# ---------------- BOTÃO GPTMAKER WIDGET (FLOAT) ----------------
+
 def inject_gptmaker_widget():
     components.html(
         r"""
         <script>
         (function () {
           try {
-            // tenta acessar o DOM principal (fora do iframe do Streamlit)
             var doc = (window.parent && window.parent.document)
               ? window.parent.document
               : document;
 
-            // evita duplicar em reruns do Streamlit
+            var INACTIVITY_LIMIT = 5 * 60 * 1000; // 5 minutos
+            var LAST_ACTIVITY_KEY = "__gptmaker_last_activity__";
+
+            function now() {
+              return new Date().getTime();
+            }
+
+            function markActivity() {
+              try {
+                localStorage.setItem(LAST_ACTIVITY_KEY, String(now()));
+              } catch(e){}
+            }
+
+            function clearGPTMakerStorage() {
+              try {
+                Object.keys(localStorage || {}).forEach(function(k){
+                  if (k.toLowerCase().includes("gpt") || k.toLowerCase().includes("chat")) {
+                    localStorage.removeItem(k);
+                  }
+                });
+                Object.keys(sessionStorage || {}).forEach(function(k){
+                  if (k.toLowerCase().includes("gpt") || k.toLowerCase().includes("chat")) {
+                    sessionStorage.removeItem(k);
+                  }
+                });
+              } catch(e){}
+            }
+
+            // verifica inatividade ao carregar
+            try {
+              var last = parseInt(localStorage.getItem(LAST_ACTIVITY_KEY) || "0", 10);
+              if (last && (now() - last) > INACTIVITY_LIMIT) {
+                clearGPTMakerStorage();
+              }
+            } catch(e){}
+
+            // registra atividade do usuário
+            ["mousemove", "keydown", "scroll", "touchstart", "click"].forEach(function(evt){
+              doc.addEventListener(evt, markActivity, { passive: true });
+            });
+
+            // inicializa atividade
+            markActivity();
+
+            // evita duplicar o script do widget
             if (doc.getElementById("gptmaker-float-loader")) return;
 
             var s = doc.createElement("script");
@@ -46,26 +90,21 @@ def inject_gptmaker_widget():
             s.src = "https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js";
             doc.head.appendChild(s);
 
-            // força z-index alto para não ficar atrás do header fixo
+            // garante z-index alto (acima do header fixo)
             var tries = 0;
             var t = setInterval(function () {
               tries++;
-
               var els = doc.querySelectorAll(
                 '[id*="gptmaker"], [class*="gptmaker"], iframe[src*="gptmaker"], div[style*="position: fixed"]'
               );
-
               els.forEach(function (el) {
-                try {
-                  el.style.zIndex = "2147483647";
-                } catch (e) {}
+                try { el.style.zIndex = "2147483647"; } catch(e){}
               });
-
               if (tries > 60) clearInterval(t);
             }, 200);
 
           } catch (e) {
-            console.log("GPTMaker inject error:", e);
+            console.log("GPTMaker inactivity control error:", e);
           }
         })();
         </script>
@@ -73,6 +112,7 @@ def inject_gptmaker_widget():
         height=0,
         width=0,
     )
+
 
 
 # injeta o widget ANTES do header
@@ -130,3 +170,4 @@ with tab9:
 
 # ----------------- RODAPÉ (GLOBAL) ----------------
 render_footer()
+
