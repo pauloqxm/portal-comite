@@ -35,7 +35,7 @@ def inject_gptmaker_widget():
           try {
             var doc = (window.parent && window.parent.document) ? window.parent.document : document;
 
-            // --- 1) Carrega o widget uma vez ---
+            // Carrega o float.js só 1 vez
             if (!doc.getElementById("gptmaker-float-loader")) {
               var s = doc.createElement("script");
               s.id = "gptmaker-float-loader";
@@ -44,19 +44,15 @@ def inject_gptmaker_widget():
               doc.head.appendChild(s);
             }
 
-            // --- 2) Limpa storage do GPTMaker ---
             function clearGPTMakerStorage() {
               try {
-                var keys = Object.keys(localStorage || {});
-                keys.forEach(function(k){
+                Object.keys(localStorage || {}).forEach(function(k){
                   var kk = (k || "").toLowerCase();
                   if (kk.includes("gptmaker") || kk.includes("gpt") || kk.includes("chat")) {
                     localStorage.removeItem(k);
                   }
                 });
-
-                var skeys = Object.keys(sessionStorage || {});
-                skeys.forEach(function(k){
+                Object.keys(sessionStorage || {}).forEach(function(k){
                   var kk = (k || "").toLowerCase();
                   if (kk.includes("gptmaker") || kk.includes("gpt") || kk.includes("chat")) {
                     sessionStorage.removeItem(k);
@@ -65,56 +61,60 @@ def inject_gptmaker_widget():
               } catch(e){}
             }
 
-            // --- 3) Acha o iframe do GPTMaker (o teu src é esse) ---
-            function getGptIframe() {
-              return doc.querySelector('iframe[src*="app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/iframe?floating=true"]')
-                  || doc.querySelector('iframe[src*="app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/iframe"]')
-                  || doc.querySelector('iframe[src*="app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A"]');
+            function getIfr() {
+              return doc.querySelector('iframe[src*="app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/iframe"]');
             }
 
-            // --- 4) Detecta aberto/fechado por tamanho do iframe ---
-            // Ajuste fino: aberto quando >= 260x260 (igual ao teu 458x386)
-            var OPEN_W = 260, OPEN_H = 260;
-            var wasOpen = false;
-
-            function isOpenBySize(ifr) {
-              if (!ifr) return false;
-              var r = ifr.getBoundingClientRect();
-              return (r.width >= OPEN_W && r.height >= OPEN_H);
-            }
-
-            // --- 5) Z-index alto pra não ficar atrás do header ---
-            function boostZIndex(ifr) {
+            function boostZ(ifr){
               if (!ifr) return;
               try { ifr.style.zIndex = "2147483647"; } catch(e){}
             }
 
-            // --- 6) Loop: se estava aberto e fechou => limpa histórico ---
-            setInterval(function () {
-              var ifr = getGptIframe();
+            function isOpen(ifr){
+              if (!ifr) return false;
+              var r = ifr.getBoundingClientRect();
+              // ABERTO: tem tamanho
+              return (r.width > 10 && r.height > 10);
+            }
+
+            function isClosed(ifr){
+              if (!ifr) return false;
+              var r = ifr.getBoundingClientRect();
+              // FECHADO: 0x0 (no teu caso)
+              return (r.width === 0 && r.height === 0);
+            }
+
+            var wasOpen = false;
+
+            setInterval(function(){
+              var ifr = getIfr();
               if (!ifr) return;
 
-              boostZIndex(ifr);
+              boostZ(ifr);
 
-              var open = isOpenBySize(ifr);
+              var openNow = isOpen(ifr);
+              var closedNow = isClosed(ifr);
 
-              // Transição: ABERTO -> FECHADO
-              if (wasOpen && !open) {
+              // Se estava aberto e agora fechou, limpa tudo
+              if (wasOpen && closedNow) {
                 clearGPTMakerStorage();
 
-                // Extra (forte): “reinicia” o iframe pra garantir conversa zerada
-                // sem depender só do storage
+                // Reinicia o iframe pra garantir sessão nova
                 try {
                   var src = ifr.getAttribute("src") || "";
                   if (src) {
+                    // remove __ts antigo e coloca outro
+                    src = src.replace(/([?&])__ts=\d+/g, "");
+                    src = src.replace(/[?&]$/, "");
                     var sep = src.indexOf("?") >= 0 ? "&" : "?";
-                    ifr.setAttribute("src", src.split("#")[0].replace(/([?&])__ts=\d+/,"$1").replace(/&$/,"") + sep + "__ts=" + Date.now());
+                    ifr.setAttribute("src", src + sep + "__ts=" + Date.now());
                   }
                 } catch(e){}
               }
 
-              wasOpen = open;
-            }, 500);
+              wasOpen = openNow;
+
+            }, 400);
 
           } catch (e) {
             console.log("GPTMaker close-reset error:", e);
@@ -181,6 +181,7 @@ with tab9:
 
 # ----------------- RODAPÉ (GLOBAL) ----------------
 render_footer()
+
 
 
 
