@@ -37,19 +37,7 @@ def inject_gptmaker_widget():
               ? window.parent.document
               : document;
 
-            var INACTIVITY_LIMIT = 5 * 60 * 1000; // 5 minutos
-            var LAST_ACTIVITY_KEY = "__gptmaker_last_activity__";
-
-            function now() {
-              return new Date().getTime();
-            }
-
-            function markActivity() {
-              try {
-                localStorage.setItem(LAST_ACTIVITY_KEY, String(now()));
-              } catch(e){}
-            }
-
+            // -------- util: limpar histórico --------
             function clearGPTMakerStorage() {
               try {
                 Object.keys(localStorage || {}).forEach(function(k){
@@ -65,32 +53,45 @@ def inject_gptmaker_widget():
               } catch(e){}
             }
 
-            // verifica inatividade ao carregar
-            try {
-              var last = parseInt(localStorage.getItem(LAST_ACTIVITY_KEY) || "0", 10);
-              if (last && (now() - last) > INACTIVITY_LIMIT) {
+            // evita duplicar script
+            if (!doc.getElementById("gptmaker-float-loader")) {
+              var s = doc.createElement("script");
+              s.id = "gptmaker-float-loader";
+              s.async = true;
+              s.src = "https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js";
+              doc.head.appendChild(s);
+            }
+
+            // -------- observa abertura/fechamento do chat --------
+            var chatWasOpen = false;
+
+            function isChatOpen() {
+              // tenta identificar painel aberto do chat
+              var panel =
+                doc.querySelector('[class*="gptmaker"][style*="display"]') ||
+                doc.querySelector('[class*="chat"][style*="display"]') ||
+                doc.querySelector('iframe[src*="gptmaker"]');
+
+              if (!panel) return false;
+
+              // se iframe ou div visível
+              if (panel.tagName === "IFRAME") return true;
+              var style = window.getComputedStyle(panel);
+              return style.display !== "none" && style.visibility !== "hidden";
+            }
+
+            setInterval(function () {
+              var open = isChatOpen();
+
+              // se estava aberto e agora fechou → zera histórico
+              if (chatWasOpen && !open) {
                 clearGPTMakerStorage();
               }
-            } catch(e){}
 
-            // registra atividade do usuário
-            ["mousemove", "keydown", "scroll", "touchstart", "click"].forEach(function(evt){
-              doc.addEventListener(evt, markActivity, { passive: true });
-            });
+              chatWasOpen = open;
+            }, 600);
 
-            // inicializa atividade
-            markActivity();
-
-            // evita duplicar o script do widget
-            if (doc.getElementById("gptmaker-float-loader")) return;
-
-            var s = doc.createElement("script");
-            s.id = "gptmaker-float-loader";
-            s.async = true;
-            s.src = "https://app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/float.js";
-            doc.head.appendChild(s);
-
-            // garante z-index alto (acima do header fixo)
+            // -------- garante z-index alto --------
             var tries = 0;
             var t = setInterval(function () {
               tries++;
@@ -104,7 +105,7 @@ def inject_gptmaker_widget():
             }, 200);
 
           } catch (e) {
-            console.log("GPTMaker inactivity control error:", e);
+            console.log("GPTMaker close-reset error:", e);
           }
         })();
         </script>
@@ -112,8 +113,6 @@ def inject_gptmaker_widget():
         height=0,
         width=0,
     )
-
-
 
 # injeta o widget ANTES do header
 inject_gptmaker_widget()
@@ -170,4 +169,5 @@ with tab9:
 
 # ----------------- RODAPÉ (GLOBAL) ----------------
 render_footer()
+
 
