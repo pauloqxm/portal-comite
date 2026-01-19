@@ -35,7 +35,7 @@ def inject_gptmaker_widget():
           try {
             var doc = (window.parent && window.parent.document) ? window.parent.document : document;
 
-            // Carrega o float.js uma única vez
+            // carrega o float.js uma vez
             if (!doc.getElementById("gptmaker-float-loader")) {
               var s = doc.createElement("script");
               s.id = "gptmaker-float-loader";
@@ -48,15 +48,19 @@ def inject_gptmaker_widget():
               return doc.querySelector('iframe[src*="app.gptmaker.ai/widget/3ED61474B48BE397410802603320372A/iframe"]');
             }
 
+            function rect(ifr){
+              try { return ifr.getBoundingClientRect(); } catch(e){ return {width:0,height:0}; }
+            }
+
             function isOpen(ifr){
               if (!ifr) return false;
-              var r = ifr.getBoundingClientRect();
+              var r = rect(ifr);
               return (r.width > 10 && r.height > 10);
             }
 
             function isClosed(ifr){
               if (!ifr) return false;
-              var r = ifr.getBoundingClientRect();
+              var r = rect(ifr);
               return (r.width === 0 && r.height === 0);
             }
 
@@ -65,7 +69,8 @@ def inject_gptmaker_widget():
               try { ifr.style.zIndex = "2147483647"; } catch(e){}
             }
 
-            function hardResetIframe(ifr){
+            // Troca apenas o SRC (sem remover iframe) para evitar tela branca
+            function refreshIframeSrc(ifr){
               try {
                 var src = (ifr.getAttribute("src") || "").split("#")[0];
                 if (!src) return;
@@ -74,35 +79,15 @@ def inject_gptmaker_widget():
                 src = src.replace(/([?&])__ts=\d+/g, "");
                 src = src.replace(/[?&]$/, "");
 
-                // cria src novo
                 var sep = src.indexOf("?") >= 0 ? "&" : "?";
                 var newSrc = src + sep + "__ts=" + Date.now();
 
-                // remove e recria (reset forte)
-                var parent = ifr.parentElement;
-                var next = ifr.nextSibling;
-                ifr.remove();
-
-                var n = doc.createElement("iframe");
-                n.src = newSrc;
-                n.allow = "clipboard-read; clipboard-write; microphone; camera; autoplay";
-                n.style.border = "0";
-                n.style.position = "fixed"; // se o widget reposicionar, não atrapalha
-                n.style.width = "0px";
-                n.style.height = "0px";
-                n.style.opacity = "0";
-                n.style.pointerEvents = "none";
-
-                if (parent) {
-                  if (next) parent.insertBefore(n, next);
-                  else parent.appendChild(n);
-                } else {
-                  doc.body.appendChild(n);
-                }
+                ifr.setAttribute("src", newSrc);
               } catch(e){}
             }
 
             var wasOpen = false;
+            var needsResetOnNextOpen = false;
 
             setInterval(function(){
               var ifr = getIfr();
@@ -113,16 +98,29 @@ def inject_gptmaker_widget():
               var openNow = isOpen(ifr);
               var closedNow = isClosed(ifr);
 
-              // ABERTO -> FECHADO: reseta forte
+              // ABERTO -> FECHOU: marca que precisa resetar na próxima abertura
               if (wasOpen && closedNow) {
-                hardResetIframe(ifr);
+                needsResetOnNextOpen = true;
+              }
+
+              // FECHADO -> ABRIU: se marcado, reseta no momento do abrir
+              if (!wasOpen && openNow) {
+                if (needsResetOnNextOpen) {
+                  // dá um tiquinho de tempo pro widget “subir”, depois renova src
+                  setTimeout(function(){
+                    var ifr2 = getIfr();
+                    if (ifr2) refreshIframeSrc(ifr2);
+                  }, 150);
+                  needsResetOnNextOpen = false;
+                }
               }
 
               wasOpen = openNow;
+
             }, 300);
 
           } catch (e) {
-            console.log("GPTMaker hard-reset error:", e);
+            console.log("GPTMaker reset-on-open error:", e);
           }
         })();
         </script>
@@ -186,6 +184,7 @@ with tab9:
 
 # ----------------- RODAPÉ (GLOBAL) ----------------
 render_footer()
+
 
 
 
