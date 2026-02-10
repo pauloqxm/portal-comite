@@ -75,6 +75,10 @@ def render_vazoes_dashboard():
         st.markdown('<div class="filter-card"><div class="filter-title">Opções de Filtro</div>', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
+            # Adicione estas linhas ANTES da linha com erro
+            st.write("🔍 **DEBUG - Colunas disponíveis:**")
+            st.write(df.columns.tolist())
+            st.write(f"Total de colunas: {len(df.columns)}")
             estacoes = st.multiselect("🏞️ Reservatório", df["Reservatório Monitorado"].dropna().unique(), key="estacoes_vazao")
             operacao = st.multiselect("🔧 Operação", df["Operação"].dropna().unique(), key="operacao_vazao")
         with col2:
@@ -568,4 +572,5 @@ def render_vazoes_dashboard():
     # ------------- Tabela -------------
     st.subheader("📋 Tabela Detalhada")
     st.dataframe(df_filtrado.sort_values(by="Data", ascending=False), use_container_width=True, key="dataframe_vazao")
+
 
